@@ -1,4 +1,6 @@
 nodeLinker: hoisted
+# 依赖版本已由 pnpm-lock.yaml 固定；关闭发布冷却，避免新发布的锁定版本在 CI 被拒绝。
+minimumReleaseAge: 0
 allowBuilds:
   # esbuild 的平台二进制由 optionalDependencies 提供，无需 postinstall；
   # 明确关闭可避免在受限环境中执行子进程。
