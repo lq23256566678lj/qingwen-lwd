@@ -1,10 +1,24 @@
 # 轻文 LWD
 
+[![build](https://github.com/lq23256566678lj/qingwen-lwd/actions/workflows/build.yml/badge.svg)](https://github.com/lq23256566678lj/qingwen-lwd/actions/workflows/build.yml)
+
 > 写作，应该轻一点。
 
 轻文是一款基于 **Tauri 2 + Rust + React + TipTap 3** 的跨平台轻量级富文本编辑器。它把 Word 里最常用的那部分能力做得足够顺手，同时用一个自包含的 `.lwd` JSON 文件保存全部内容：文字、格式、表格和图片都在一个文件里，不依赖 Office，也不依赖资源目录。
 
 <p align="center"><img src="assets/icon-source.png" width="120" alt="轻文图标" /></p>
+
+## 下载
+
+已发布 **v0.1.0**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.1.0)
+
+| 平台 | 安装包 |
+| --- | --- |
+| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen.LWD_0.1.0_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen.LWD_0.1.0_x64_en-US.msi) · [便携版 ZIP](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen-LWD-0.1.0-Windows-x64-portable.zip) |
+| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen%20LWD_0.1.0_universal.dmg) |
+| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen%20LWD_0.1.0_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen%20LWD_0.1.0_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.1.0/Qingwen%20LWD-0.1.0-1.x86_64.rpm) |
+
+安装包由 GitHub Actions 在 Windows/macOS/Linux 上构建，均未代码签名；Windows SmartScreen 与 macOS Gatekeeper 可能提示，需手动允许。
 
 ## 功能一览
 
@@ -180,8 +194,6 @@ pnpm validate:lwd
 
 ### 构建验证状态
 
-交付环境没有 MSVC / Windows SDK，因此**没有在这台机器上执行 MSVC 的 `cargo tauri build`**。已经完成的验证：
-
 | 检查 | 结果 |
 | --- | --- |
 | `tsc --noEmit` | 通过 |
@@ -189,10 +201,13 @@ pnpm validate:lwd
 | `cargo fmt --check` | 通过 |
 | `cargo check --target x86_64-pc-windows-gnu` | 通过（Tauri 2.12.5 全量依赖） |
 | `cargo build --target x86_64-pc-windows-gnu` | 通过，生成可执行文件并完成链接 |
+| GitHub Actions · windows-latest（MSVC） | 通过，产出 NSIS + MSI 安装包 |
+| GitHub Actions · macos-latest | 通过，产出 universal DMG |
+| GitHub Actions · ubuntu-22.04 | 通过，产出 AppImage / DEB / RPM |
 | 示例 `.lwd` 经 TipTap schema 校验 | 通过 |
 | happy-dom 挂载生产 bundle | 通过（编辑器/工具栏/24 个按钮正常渲染） |
 
-Windows GNU 目标使用临时 MinGW + rust-lld 完成链接验证；正式交付仍建议使用 MSVC 工具链执行 `cargo tauri build`。macOS / Linux 构建需要在对应系统上执行。
+本地交付环境没有 MSVC/Windows SDK；MSVC 构建由 GitHub Actions 的 `windows-latest` 完成，运行 `pnpm tauri build` 并上传安装包。macOS / Linux 同样已在 CI 中完成构建（见 [Actions](https://github.com/lq23256566678lj/qingwen-lwd/actions)）。
 
 ## 快捷键
 
@@ -259,7 +274,7 @@ macOS 使用 ⌘ / ⇧ / ⌥；Windows 与 Linux 使用 Ctrl / Shift / Alt。
 - 表格不支持公式、单元格底色/边框自定义、行列拖拽排序、嵌套表格。
 - 自动保存是“最后写入者获胜”，不处理外部程序同时修改同一文件；没有版本历史。
 - 单窗口、单文档，无标签页；草稿只保留最后一份。
-- 未做 macOS / Linux 实机验证；Windows 侧已用 GNU 目标完成 `cargo check` 与完整链接，但未在 MSVC 工具链执行 `cargo tauri build`（交付环境缺少 MSVC/Windows SDK），正式打包前请在目标平台复验。
+- macOS / Linux 已有 CI 构建产物，但未在真机上完成菜单、输入法与字体回归；Windows 安装包未签名，可能出现 SmartScreen 提示。
 - 大型文档（数万段或数十张内嵌图片）下，工具栏每个 transaction 重渲染与整篇 JSON 序列化会带来可感知延迟。
 
 ## 文档与示例
