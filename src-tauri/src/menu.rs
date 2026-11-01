@@ -150,11 +150,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         vec![&file_menu, &edit_menu, &format_menu, &help_menu];
 
     #[cfg(target_os = "macos")]
-    {
-        let app_sep = PredefinedMenuItem::separator(app)?;
-        let app_menu = Submenu::with_items(app, "轻文", true, &[&about, &app_sep, &quit])?;
-        items.insert(0, &app_menu);
-    }
+    let app_sep = PredefinedMenuItem::separator(app)?;
+    // 必须把 app_menu 放在函数作用域，items 持有它的引用，不能在大括号内提前 drop。
+    #[cfg(target_os = "macos")]
+    let app_menu = Submenu::with_items(app, "轻文", true, &[&about, &app_sep, &quit])?;
+    #[cfg(target_os = "macos")]
+    items.insert(0, &app_menu);
 
     Menu::with_items(app, &items)
 }
