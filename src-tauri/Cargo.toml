@@ -1,0 +1,30 @@
+[package]
+name = "qingwen"
+version = "0.1.0"
+description = "轻文 · 基于 Tauri 2 + TipTap 的跨平台轻量级富文本编辑器"
+authors = ["Qingwen"]
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "qingwen_lib"
+# 桌面端只需要 rlib；不生成 cdylib，避免 Windows 上 DLL 导出符号数量限制。
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

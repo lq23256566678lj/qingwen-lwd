@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qingwen.local/schema/lwd-v1.json",
+  "title": "轻文 LWD v1 文档",
+  "description": "轻文 .lwd 文件的外层信封。document 字段是 TipTap / ProseMirror 的 JSON 文档；完整节点语义由编辑器 schema 在打开时校验。",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "app",
+    "createdAt",
+    "updatedAt",
+    "meta",
+    "document"
+  ],
+  "properties": {
+    "format": {
+      "const": "lwd",
+      "description": "格式标识，固定为 lwd。"
+    },
+    "version": {
+      "const": 1,
+      "description": "格式版本。当前仅支持 1。"
+    },
+    "app": {
+      "const": "qingwen-lwd",
+      "description": "写入该文件的应用程序标识。"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "首次创建时间，RFC 3339 / ISO 8601，UTC。"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "最后一次写入时间，RFC 3339 / ISO 8601，UTC。"
+    },
+    "meta": {
+      "$ref": "#/$defs/docMeta"
+    },
+    "document": {
+      "$ref": "#/$defs/document"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "docMeta": {
+      "type": "object",
+      "required": ["title", "wordCount", "characterCount"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "文档标题，通常来自文件名。"
+        },
+        "wordCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "中文按字、西文按词统计的字数。"
+        },
+        "characterCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "去除空白后的字符数。"
+        }
+      },
+      "additionalProperties": false
+    },
+    "document": {
+      "type": "object",
+      "required": ["type", "content"],
+      "properties": {
+        "type": {
+          "const": "doc"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "节点类型，例如 paragraph、heading、table、image、codeBlock。"
+        },
+        "attrs": {
+          "type": ["object", "null"],
+          "description": "节点属性，例如 heading 的 level、image 的 src/width。"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "文本节点内容。"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mark"
+          },
+          "description": "文本节点的内联样式。"
+        }
+      },
+      "additionalProperties": true
+    },
+    "mark": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "bold、italic、underline、strike、code、highlight、textStyle、link 等。"
+        },
+        "attrs": {
+          "type": ["object", "null"]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

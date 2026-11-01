@@ -1,0 +1,5 @@
+nodeLinker: hoisted
+allowBuilds:
+  # esbuild 的平台二进制由 optionalDependencies 提供，无需 postinstall；
+  # 明确关闭可避免在受限环境中执行子进程。
+  esbuild: false
