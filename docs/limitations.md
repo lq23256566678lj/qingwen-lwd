@@ -53,7 +53,7 @@
 
 ## 5. 平台与输入法
 
-- 代码按 Tauri 2 的跨平台 API 编写，但**未在 macOS / Linux 实机上完成回归**；主要风险点是原生菜单布局、⌘ 加速键、WebKitGTK 的字体与输入法行为。
+- 代码按 Tauri 2 的跨平台 API 编写，macOS / Linux 已由 GitHub Actions 成功构建；但**未在 macOS / Linux 真机上完成运行回归**，主要风险点是原生菜单布局、⌘ 加速键、WebKitGTK 的字体与输入法行为。
 - Linux 需要额外的 WebKitGTK 系统依赖；不同发行版的输入法（fcitx5 / ibus）行为可能与 Windows 不同。
 - 中文输入法：已避免在 composition 期间抢快捷键、避免受控组件重写内容；但不同 IME 版本的候选框定位、标点转换、emoji 输入仍可能有个体差异，需要按输入法逐一验证。
 - 无自定义标题栏：使用系统原生窗口装饰；macOS 的交通灯与 Windows 的标题栏样式由系统决定。
@@ -61,17 +61,14 @@
 
 ## 6. 构建与交付
 
-- **未在 MSVC 工具链执行 `cargo tauri build`**：交付环境没有 MSVC / Windows SDK。已完成 GNU 目标的完整验证：
-  - `cargo metadata --no-deps` 通过；
-  - `cargo fmt --check` 通过；
-  - `cargo check --target x86_64-pc-windows-gnu` 通过（含 Tauri 2.12.5 全量依赖）；
-  - `cargo build --target x86_64-pc-windows-gnu` 通过，完成 Windows 可执行文件链接；
-  - 前端 `tsc --noEmit` 与 Vite 8 生产构建通过；
-  - 示例 `.lwd` 通过 TipTap schema 校验；
-  - 生产 bundle 在 happy-dom 中成功挂载（编辑器与工具栏渲染）。
+- GitHub Actions 的 `build` workflow 已在三个平台成功构建：
+  - Windows `windows-latest`（MSVC）：NSIS + MSI；
+  - macOS `macos-latest`：universal DMG；
+  - Linux `ubuntu-22.04`：AppImage / DEB / RPM。
+- 本地交付环境没有 MSVC/Windows SDK；本地完成了 `cargo fmt --check`、GNU 目标的 `cargo check` 与 `cargo build` 链接验证，以及前端 `tsc`/Vite 生产构建。MSVC 构建由 CI 完成。
 - 在具备 Tauri 前置依赖的机器上，请先 `pnpm install`，再执行 `cargo tauri build`。首次打包需要网络下载 WiX/NSIS。
 - 未配置代码签名、公证、自动更新；macOS 分发给他人时需要自行签名/notarize，Windows 可能出现 SmartScreen 提示。
-- 未提供 CI 配置；跨平台产物需在对应系统上分别构建（Tauri 不支持交叉打包 macOS/Linux 安装包）。
+- 跨平台产物由 GitHub Actions 在对应系统上构建；Tauri 不支持交叉打包 macOS/Linux 安装包。
 - 单元测试代码已随 `storage.rs` 提供，但 GNU 测试可执行文件在交付环境中因运行时 DLL 搜索路径未成功运行；不影响库与主程序的编译链接。
 
 ## 7. 无障碍与其他
@@ -90,7 +87,7 @@
 
 ## 可能的后续优先级
 
-1. 在 Windows/macOS/Linux 真机上补输入法与菜单回归，建立最小 CI。
+1. 在 Windows/macOS/Linux 真机上补输入法与菜单回归。
 2. 文件锁/冲突检测与“最近文件”。
 3. 大文档性能：按块序列化、编辑器内增量字数统计、工具栏状态选择器。
 4. 图片外置资源模式（可选），在“自包含”和“小文件”之间给用户选择。
