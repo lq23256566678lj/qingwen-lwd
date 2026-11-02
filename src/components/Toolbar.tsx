@@ -21,7 +21,9 @@ import {
   Redo2,
   Rows3,
   Search,
+  Settings2,
   Split,
+  Star,
   Strikethrough,
   Table,
   Trash2,
@@ -67,6 +69,9 @@ interface ToolbarProps {
   onOpenImage: () => void
   onOpenLink: () => void
   onOpenFind: (mode: 'find' | 'replace') => void
+  onOpenPageSetup: () => void
+  fontDefaults: { fontFamily: string; fontSize: number }
+  onSaveTextDefaults: (fontFamily: string, fontSize: number) => void
 }
 
 interface SelectButtonProps {
@@ -135,6 +140,9 @@ export function Toolbar({
   onOpenImage,
   onOpenLink,
   onOpenFind,
+  onOpenPageSetup,
+  fontDefaults,
+  onSaveTextDefaults,
 }: ToolbarProps) {
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0)
 
@@ -166,9 +174,11 @@ export function Toolbar({
   const currentHighlight =
     (editor.getAttributes('highlight') as { color?: string }).color ??
     '#fff3a3'
-  const currentFontSize = Number.parseInt(textStyle.fontSize ?? '', 10) || 16
+  const currentFontSize =
+    Number.parseInt(textStyle.fontSize ?? '', 10) || fontDefaults.fontSize
+  const activeFontFamily = textStyle.fontFamily ?? fontDefaults.fontFamily
   const fontFamilyOption = FONT_FAMILIES.find(
-    (option) => option.value === (textStyle.fontFamily ?? ''),
+    (option) => option.value === activeFontFamily,
   )
   const fontFamilyLabel = fontFamilyOption?.label ?? '字体'
 
@@ -272,9 +282,7 @@ export function Toolbar({
                   key={option.label}
                   type="button"
                   className={`menu-item${
-                    (textStyle.fontFamily ?? '') === option.value
-                      ? ' is-active'
-                      : ''
+                    activeFontFamily === option.value ? ' is-active' : ''
                   }`}
                   style={
                     option.value ? { fontFamily: option.value } : undefined
@@ -345,6 +353,22 @@ export function Toolbar({
             </div>
           )}
         </Popover>
+
+        <ToolButton
+          icon={Star}
+          label="保存当前字体/字号为默认"
+          onClick={() => {
+            const attrs = editor.getAttributes('textStyle') as {
+              fontFamily?: string
+              fontSize?: string
+            }
+            onSaveTextDefaults(
+              attrs.fontFamily ?? fontDefaults.fontFamily,
+              Number.parseInt(attrs.fontSize ?? '', 10) ||
+                fontDefaults.fontSize,
+            )
+          }}
+        />
       </div>
 
       <div className="tool-group">
@@ -591,6 +615,11 @@ export function Toolbar({
       </div>
 
       <div className="tool-group">
+        <ToolButton
+          icon={Settings2}
+          label="页面设置"
+          onClick={onOpenPageSetup}
+        />
         <ToolButton
           icon={Search}
           label="查找和替换"

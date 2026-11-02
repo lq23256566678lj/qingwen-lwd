@@ -1,0 +1,41 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 前端构建
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 参考源码 / 本地工具链
+.refs/
+*.crate
+.toolchain/
+rustup-init.exe
+.edge-profile/
+screenshot*.png
+hello.rs
+hello-lld.exe
+
+# 日志
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 本地打包产物
+dist-portable/
+dist-installers/
+Qingwen-LWD-*.exe
+Qingwen-LWD-*.msi
+.cargo-home/
+.smoke/

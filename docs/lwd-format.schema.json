@@ -64,6 +64,54 @@
           "type": "integer",
           "minimum": 0,
           "description": "去除空白后的字符数。"
+        },
+        "layout": {
+          "type": "object",
+          "description": "可选的 A4 页面版式；旧文档没有该字段时使用应用默认值。",
+          "required": ["lineHeight", "firstLineIndent"],
+          "properties": {
+            "lineHeight": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 3,
+              "description": "行高倍数。"
+            },
+            "margins": {
+              "type": "object",
+              "description": "上下左右页边距，单位 cm；A4 页宽 21 cm。",
+              "required": ["top", "bottom", "left", "right"],
+              "properties": {
+                "top": { "type": "number", "minimum": 0, "maximum": 5 },
+                "bottom": { "type": "number", "minimum": 0, "maximum": 5 },
+                "left": { "type": "number", "minimum": 0, "maximum": 5 },
+                "right": { "type": "number", "minimum": 0, "maximum": 5 }
+              },
+              "additionalProperties": false
+            },
+            "margin": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 140,
+              "description": "旧版四边统一页边距，单位 px；仅用于兼容旧文档。"
+            },
+            "firstLineIndent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 4,
+              "description": "正文段落首行缩进，单位 em。"
+            },
+            "fontFamily": {
+              "type": "string",
+              "description": "默认正文字体 CSS font-family；空字符串表示内置字体栈。"
+            },
+            "fontSize": {
+              "type": "number",
+              "minimum": 8,
+              "maximum": 96,
+              "description": "默认正文字号，单位 px。"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

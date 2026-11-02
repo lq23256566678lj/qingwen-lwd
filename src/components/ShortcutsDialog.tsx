@@ -10,7 +10,7 @@ const GROUPS: { title: string; items: { keys: string; action: string }[] }[] = [
       { keys: 'Mod+O', action: '打开 .lwd 文档' },
       { keys: 'Mod+S', action: '保存' },
       { keys: 'Mod+Shift+S', action: '另存为' },
-      { keys: 'Mod+W', action: '关闭窗口' },
+      { keys: 'Mod+W', action: '关闭当前标签页' },
     ],
   },
   {

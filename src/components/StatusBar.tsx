@@ -1,9 +1,16 @@
 import type { Editor } from '@tiptap/core'
-import { Cloud, HardDrive, Type } from 'lucide-react'
+import {
+  Cloud,
+  CloudOff,
+  HardDrive,
+  Loader2,
+  TriangleAlert,
+  Type,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { formatClock, formatNumber, countText } from '../lib/text'
-import type { SaveState } from '../lib/types'
+import type { CloudStatus, SaveState } from '../lib/types'
 
 interface StatusBarProps {
   editor: Editor
@@ -12,6 +19,8 @@ interface StatusBarProps {
   saveState: SaveState
   lastSavedAt: string | null
   previewMode: boolean
+  cloud: CloudStatus
+  onOpenSync: () => void
 }
 
 export function StatusBar({
@@ -21,6 +30,8 @@ export function StatusBar({
   saveState,
   lastSavedAt,
   previewMode,
+  cloud,
+  onOpenSync,
 }: StatusBarProps) {
   const [counts, setCounts] = useState({ words: 0, characters: 0 })
   const timerRef = useRef<number | null>(null)
@@ -53,6 +64,29 @@ export function StatusBar({
             ? `已保存 ${formatClock(lastSavedAt)}`
             : '尚未修改'
 
+  const cloudText =
+    cloud.state === 'unconfigured'
+      ? '云盘未配置'
+      : cloud.state === 'syncing'
+        ? '云盘同步中…'
+        : cloud.state === 'synced'
+          ? `云盘已同步 ${formatClock(cloud.at)}`
+          : cloud.state === 'error'
+            ? `云盘失败：${cloud.message ?? '未知错误'}`
+            : '云盘已配置'
+  const cloudTitle =
+    cloud.state === 'error'
+      ? cloud.message ?? '云盘同步失败'
+      : '打开云盘同步设置'
+  const CloudIcon =
+    cloud.state === 'unconfigured'
+      ? CloudOff
+      : cloud.state === 'syncing'
+        ? Loader2
+        : cloud.state === 'error'
+          ? TriangleAlert
+          : Cloud
+
   return (
     <footer className="statusbar">
       <div className="status-left">
@@ -74,6 +108,18 @@ export function StatusBar({
             自动保存 · {saveText}
           </>
         )}
+        <button
+          type="button"
+          className={`status-cloud status-cloud-${cloud.state}`}
+          onClick={onOpenSync}
+          title={cloudTitle}
+        >
+          <CloudIcon
+            size={12}
+            className={cloud.state === 'syncing' ? 'spin' : undefined}
+          />
+          <span>{cloudText}</span>
+        </button>
       </div>
 
       <div className="status-right">

@@ -6,10 +6,17 @@
   min-height: 55vh;
   outline: none;
   color: #24292f;
-  font-family: "Calibri", "DengXian", "Segoe UI", "Microsoft YaHei",
-    "PingFang SC", sans-serif;
-  font-size: 16px;
-  line-height: 1.85;
+  font-family: var(
+    --lwd-font-family,
+    "Calibri",
+    "DengXian",
+    "Segoe UI",
+    "Microsoft YaHei",
+    "PingFang SC",
+    sans-serif
+  );
+  font-size: var(--lwd-font-size, 16px);
+  line-height: var(--lwd-line-height, 1.85);
   letter-spacing: 0.005em;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -26,6 +33,14 @@
 
 .lwd-prose p {
   margin: 0 0 0.72em;
+  text-indent: var(--lwd-first-indent, 0);
+}
+
+.lwd-prose li > p,
+.lwd-prose blockquote p,
+.lwd-prose th p,
+.lwd-prose td p {
+  text-indent: 0;
 }
 
 .lwd-prose h1,

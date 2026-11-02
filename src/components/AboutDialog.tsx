@@ -39,7 +39,7 @@ export function AboutDialog({
         <span>离线优先</span>
       </div>
       <p className="about-footnote">
-        图片以 data URL 内嵌在文档中；自动保存草稿位于系统应用数据目录。
+        图片以 data URL 内嵌在文档中；标签页树与自动保存会话位于系统应用数据目录。
       </p>
     </Modal>
   )

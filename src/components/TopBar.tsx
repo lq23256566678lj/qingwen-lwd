@@ -1,4 +1,18 @@
-import { ChevronDown, Download, FolderOpen, Info, Keyboard, Save, Search } from 'lucide-react'
+import {
+  ChevronDown,
+  Cloud,
+  CloudDownload,
+  CloudUpload,
+  Download,
+  FilePlus2,
+  FolderOpen,
+  Info,
+  Keyboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Save,
+  Search,
+} from 'lucide-react'
 
 import {
   formatClock,
@@ -14,12 +28,18 @@ interface TopBarProps {
   saveState: SaveState
   lastSavedAt: string | null
   previewMode: boolean
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
+  onNewTab: () => void
   onOpen: () => void
   onSave: () => void
   onExport: (format: ExportFormat) => void
   onToggleFind: () => void
   onShowShortcuts: () => void
   onShowAbout: () => void
+  onOpenSync: () => void
+  onCloudUpload: () => void
+  onCloudDownload: () => void
 }
 
 export function TopBar({
@@ -29,12 +49,18 @@ export function TopBar({
   saveState,
   lastSavedAt,
   previewMode,
+  sidebarOpen,
+  onToggleSidebar,
+  onNewTab,
   onOpen,
   onSave,
   onExport,
   onToggleFind,
   onShowShortcuts,
   onShowAbout,
+  onOpenSync,
+  onCloudUpload,
+  onCloudDownload,
 }: TopBarProps) {
   const statusText =
     saveState === 'saving'
@@ -58,6 +84,16 @@ export function TopBar({
 
   return (
     <header className="topbar">
+      <button
+        type="button"
+        className="icon-btn topbar-icon"
+        title={sidebarOpen ? '收起文档树' : '展开文档树'}
+        aria-label={sidebarOpen ? '收起文档树' : '展开文档树'}
+        onClick={onToggleSidebar}
+      >
+        {sidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+      </button>
+
       <div className="brand" title="轻文 · 轻量级富文本编辑器">
         <span className="brand-mark" aria-hidden="true">
           文
@@ -99,6 +135,15 @@ export function TopBar({
           onClick={onToggleFind}
         >
           <Search size={17} />
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onNewTab}
+          title="新建标签页"
+        >
+          <FilePlus2 size={16} />
+          <span className="btn-label">新建</span>
         </button>
         <button
           type="button"
@@ -168,6 +213,39 @@ export function TopBar({
         >
           {(close) => (
             <div className="menu menu-wide">
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  onCloudUpload()
+                  close()
+                }}
+              >
+                <CloudUpload size={14} />
+                上传当前文档到云盘
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  onCloudDownload()
+                  close()
+                }}
+              >
+                <CloudDownload size={14} />
+                从云盘下载并覆盖当前文档
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  onOpenSync()
+                  close()
+                }}
+              >
+                <Cloud size={14} />
+                云盘同步设置…
+              </button>
               <button
                 type="button"
                 className="menu-item"

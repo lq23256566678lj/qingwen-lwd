@@ -5,6 +5,7 @@
 
 mod menu;
 mod storage;
+mod sync;
 
 use std::path::Path;
 
@@ -12,6 +13,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 use storage::{DocMeta, DraftPayload, ImportedImage, LoadedDocument, SavedDocument};
+use sync::{SyncSettings, WebDavUploadResult};
 
 #[tauri::command]
 fn read_document(path: String) -> Result<LoadedDocument, String> {
@@ -61,6 +63,84 @@ fn export_document(path: String, content: String, format: String) -> Result<Stri
 }
 
 #[tauri::command]
+fn save_workspace_session(app: AppHandle, session: Value) -> Result<(), String> {
+    storage::save_session(&app, session)
+}
+
+#[tauri::command]
+fn load_workspace_session(app: AppHandle) -> Result<Option<Value>, String> {
+    storage::load_session(&app)
+}
+
+#[tauri::command]
+fn clear_workspace_session(app: AppHandle) -> Result<(), String> {
+    storage::clear_session(&app)
+}
+
+#[tauri::command]
+fn load_sync_settings(app: AppHandle) -> Result<SyncSettings, String> {
+    sync::load_settings(&app)
+}
+
+#[tauri::command]
+fn save_sync_settings(
+    app: AppHandle,
+    url: String,
+    username: String,
+    password: String,
+    local_autosave_seconds: u64,
+    cloud_upload_seconds: u64,
+    default_save_dir: String,
+    clear_credentials: bool,
+) -> Result<SyncSettings, String> {
+    sync::save_settings(
+        &app,
+        url,
+        username,
+        password,
+        local_autosave_seconds,
+        cloud_upload_seconds,
+        default_save_dir,
+        clear_credentials,
+    )
+}
+
+#[tauri::command]
+fn create_local_document(
+    folder: String,
+    title: String,
+    document: Value,
+    meta: DocMeta,
+) -> Result<SavedDocument, String> {
+    sync::create_local_document(folder, title, document, meta)
+}
+
+#[tauri::command]
+fn rename_local_document(
+    old_path: String,
+    folder: String,
+    title: String,
+) -> Result<String, String> {
+    sync::rename_local_document(old_path, folder, title)
+}
+
+#[tauri::command]
+async fn webdav_upload(
+    app: AppHandle,
+    remote_url: String,
+    document: Value,
+    meta: DocMeta,
+    created_at: Option<String>,
+) -> Result<WebDavUploadResult, String> {
+    sync::upload(&app, remote_url, document, meta, created_at).await
+}
+
+#[tauri::command]
+async fn webdav_download(app: AppHandle, remote_url: String) -> Result<LoadedDocument, String> {
+    sync::download(&app, remote_url).await
+}
+
+#[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
 }
@@ -89,6 +169,15 @@ pub fn run() {
             clear_draft,
             read_image_as_data_url,
             export_document,
+            save_workspace_session,
+            load_workspace_session,
+            clear_workspace_session,
+            load_sync_settings,
+            save_sync_settings,
+            create_local_document,
+            rename_local_document,
+            webdav_upload,
+            webdav_download,
             quit_app
         ])
         .run(tauri::generate_context!())

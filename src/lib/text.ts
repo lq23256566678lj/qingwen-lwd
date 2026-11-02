@@ -1,4 +1,9 @@
-import type { DocMeta } from './types'
+import {
+  DEFAULT_FONT_STACK,
+  DEFAULT_PAGE_LAYOUT,
+  normalizeLayout,
+} from './layout'
+import type { DocMeta, PageLayout } from './types'
 
 const CJK_PATTERN =
   /[\u2E80-\u2EFF\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g
@@ -79,18 +84,28 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;')
 }
 
-export function buildMeta(title: string, text: string): DocMeta {
+export function buildMeta(
+  title: string,
+  text: string,
+  layout: PageLayout = DEFAULT_PAGE_LAYOUT,
+): DocMeta {
   const counts = countText(text)
   return {
     title: title.trim() || '无标题',
     wordCount: counts.words,
     characterCount: counts.characters,
+    layout: normalizeLayout(layout),
   }
 }
 
 /** 生成可独立打开、可直接打印的 HTML 导出文件（图片已内嵌为 data URL）。 */
-export function buildStandaloneHtml(title: string, bodyHtml: string): string {
+export function buildStandaloneHtml(
+  title: string,
+  bodyHtml: string,
+  inputLayout: PageLayout = DEFAULT_PAGE_LAYOUT,
+): string {
   const safeTitle = escapeHtml(title || '无标题')
+  const layout = normalizeLayout(inputLayout)
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -103,14 +118,16 @@ export function buildStandaloneHtml(title: string, bodyHtml: string): string {
     margin: 0;
     background: #eef1f6;
     color: #24292f;
-    font-family: "Calibri", "DengXian", "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-    font-size: 16px;
-    line-height: 1.85;
+    font-family: ${layout.fontFamily || DEFAULT_FONT_STACK};
+    font-size: ${layout.fontSize}px;
+    line-height: ${layout.lineHeight};
   }
   main {
-    width: min(820px, calc(100% - 32px));
+    width: 21cm;
+    max-width: calc(100% - 32px);
+    min-height: 29.7cm;
     margin: 32px auto;
-    padding: 64px 72px;
+    padding: ${layout.margins.top}cm ${layout.margins.right}cm ${layout.margins.bottom}cm ${layout.margins.left}cm;
     background: #fff;
     box-shadow: 0 18px 50px rgba(23, 37, 64, .10);
     box-sizing: border-box;
@@ -120,7 +137,8 @@ export function buildStandaloneHtml(title: string, bodyHtml: string): string {
   h2 { font-size: 1.55em; }
   h3 { font-size: 1.25em; }
   h4 { font-size: 1.1em; }
-  p { margin: 0 0 .75em; }
+  p { margin: 0 0 .75em; text-indent: ${layout.firstLineIndent}em; }
+  li > p, blockquote p, th p, td p { text-indent: 0; }
   ul, ol { padding-left: 1.6em; }
   blockquote {
     margin: 1em 0;
@@ -155,8 +173,9 @@ export function buildStandaloneHtml(title: string, bodyHtml: string): string {
   a { color: #2f6feb; }
   hr { border: none; border-top: 1px solid #e5e7eb; margin: 2em 0; }
   @media print {
+    @page { size: A4 portrait; margin: ${layout.margins.top}cm ${layout.margins.right}cm ${layout.margins.bottom}cm ${layout.margins.left}cm; }
     body { background: #fff; }
-    main { width: auto; margin: 0; padding: 0; box-shadow: none; }
+    main { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
   }
 </style>
 </head>

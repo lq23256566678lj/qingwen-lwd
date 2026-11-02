@@ -35,6 +35,9 @@ pub struct DocMeta {
     pub word_count: u64,
     #[serde(default)]
     pub character_count: u64,
+    /// 可选的页面版式：行距、页边距、首行缩进。旧文档没有该字段。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -214,7 +217,7 @@ fn parse_draft(raw: &str) -> Result<DraftFile, String> {
 
 /// 在目标文件同目录创建临时文件，fsync 后原子 rename。
 /// Windows 上 `std::fs::rename` 会覆盖已存在的目标文件。
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path
         .parent()
         .filter(|value| !value.as_os_str().is_empty())
@@ -291,6 +294,7 @@ pub fn save_document(
         title: normalize_title(&meta.title),
         word_count: meta.word_count,
         character_count: meta.character_count,
+        layout: meta.layout,
     };
 
     let file = LwdFile {
@@ -316,6 +320,77 @@ pub fn save_document(
         updated_at,
         bytes: bytes.len(),
     })
+}
+
+/// 为 WebDAV 上传序列化 .lwd 信封，不写本地文件。
+pub fn encode_document(
+    document: Value,
+    meta: DocMeta,
+    created_at: Option<String>,
+) -> Result<Vec<u8>, String> {
+    validate_document(&document)?;
+    let created_at = created_at
+        .filter(|value| DateTime::parse_from_rfc3339(value).is_ok())
+        .unwrap_or_else(now_iso);
+    let meta = DocMeta {
+        title: normalize_title(&meta.title),
+        word_count: meta.word_count,
+        character_count: meta.character_count,
+        layout: meta.layout,
+    };
+    let file = LwdFile {
+        format: FORMAT_NAME.to_string(),
+        version: FORMAT_VERSION,
+        app: APP_NAME.to_string(),
+        created_at,
+        updated_at: now_iso(),
+        meta,
+        document,
+    };
+    let bytes = serde_json::to_vec_pretty(&file).map_err(|err| format!("序列化文档失败：{err}"))?;
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err("文档超过 128 MB，无法上传".to_string());
+    }
+    Ok(bytes)
+}
+
+/// 解析来自 WebDAV 的 .lwd 字节，不落盘。
+pub fn decode_document(bytes: &[u8]) -> Result<LoadedDocument, String> {
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err("远程文档超过 128 MB，无法下载".to_string());
+    }
+    let raw = std::str::from_utf8(bytes).map_err(|_| "远程文档不是有效的 UTF-8".to_string())?;
+    let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw);
+    let mut file = parse_lwd(raw)?;
+    if file.meta.title.trim().is_empty() {
+        file.meta.title = "无标题".to_string();
+    }
+    Ok(LoadedDocument {
+        path: String::new(),
+        document: file.document,
+        meta: file.meta,
+        created_at: file.created_at,
+        updated_at: file.updated_at,
+    })
+}
+
+/// 只更新 .lwd 的标题元数据，用于默认保存文件夹中的文件重命名。
+pub fn retitle_document(path: &Path, title: &str) -> Result<(), String> {
+    require_absolute(path)?;
+    let metadata = fs::metadata(path).map_err(|err| format!("无法读取文件：{err}"))?;
+    if !metadata.is_file() {
+        return Err("目标路径不是文件".to_string());
+    }
+    let raw = fs::read_to_string(path).map_err(|err| format!("读取文件失败：{err}"))?;
+    let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw.as_str());
+    let mut file = parse_lwd(raw)?;
+    file.meta.title = normalize_title(title);
+    file.updated_at = now_iso();
+    let bytes = serde_json::to_vec_pretty(&file).map_err(|err| format!("序列化文档失败：{err}"))?;
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err("文档超过 128 MB，无法保存".to_string());
+    }
+    write_atomic(path, &bytes)
 }
 
 fn draft_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -351,6 +426,7 @@ pub fn save_draft(
             title,
             word_count: meta.word_count,
             character_count: meta.character_count,
+            layout: meta.layout,
         },
         document,
     };
@@ -394,6 +470,109 @@ pub fn clear_draft(app: &AppHandle) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(format!("清理草稿失败：{err}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 整个工作区的会话快照：标签页树 + 每个标签页的最新 ProseMirror 文档。
+// 用于应用重启/崩溃后恢复所有标签页，而不只是当前文档。
+// ---------------------------------------------------------------------------
+
+const SESSION_FORMAT_NAME: &str = "lwd-session";
+
+fn session_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| format!("无法定位应用数据目录：{err}"))?;
+    Ok(base.join("recovery").join("session.json"))
+}
+
+fn validate_session(session: &Value) -> Result<(), String> {
+    let object = session
+        .as_object()
+        .ok_or_else(|| "会话快照必须是 JSON 对象".to_string())?;
+
+    if object.get("format").and_then(Value::as_str) != Some(SESSION_FORMAT_NAME) {
+        return Err("会话快照格式标识不匹配".to_string());
+    }
+    if object.get("version").and_then(Value::as_u64) != Some(u64::from(FORMAT_VERSION)) {
+        return Err("会话快照版本不兼容".to_string());
+    }
+    if !object.get("savedAt").is_some_and(Value::is_string) {
+        return Err("会话快照缺少 savedAt".to_string());
+    }
+
+    let tabs = object
+        .get("tabs")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "会话快照缺少 tabs 数组".to_string())?;
+    if tabs.is_empty() {
+        return Err("会话快照不包含任何标签页".to_string());
+    }
+    if tabs.len() > 500 {
+        return Err("标签页数量异常（超过 500），已忽略该会话".to_string());
+    }
+
+    for tab in tabs {
+        let tab = tab
+            .as_object()
+            .ok_or_else(|| "标签页记录必须是 JSON 对象".to_string())?;
+        if !tab
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+        {
+            return Err("标签页缺少有效 id".to_string());
+        }
+        if !tab
+            .get("title")
+            .and_then(Value::as_str)
+            .is_some_and(|title| !title.trim().is_empty())
+        {
+            return Err("标签页缺少有效标题".to_string());
+        }
+        let document = tab
+            .get("document")
+            .ok_or_else(|| "标签页缺少 document".to_string())?;
+        validate_document(document)?;
+    }
+
+    Ok(())
+}
+
+pub fn save_session(app: &AppHandle, session: Value) -> Result<(), String> {
+    validate_session(&session)?;
+    let bytes = serde_json::to_vec(&session).map_err(|err| format!("序列化会话快照失败：{err}"))?;
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err("会话快照超过 128 MB，已跳过本次备份".to_string());
+    }
+    write_atomic(&session_path(app)?, &bytes)
+}
+
+pub fn load_session(app: &AppHandle) -> Result<Option<Value>, String> {
+    let path = session_path(app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let metadata = fs::metadata(&path).map_err(|err| format!("读取会话信息失败：{err}"))?;
+    if metadata.len() > MAX_DOCUMENT_BYTES {
+        return Err("会话快照异常过大，已忽略".to_string());
+    }
+    let raw = fs::read_to_string(&path).map_err(|err| format!("读取会话失败：{err}"))?;
+    let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw.as_str());
+    let session: Value =
+        serde_json::from_str(raw).map_err(|err| format!("会话不是有效的 JSON：{err}"))?;
+    validate_session(&session)?;
+    Ok(Some(session))
+}
+
+pub fn clear_session(app: &AppHandle) -> Result<(), String> {
+    let path = session_path(app)?;
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("清理会话快照失败：{err}")),
     }
 }
 
