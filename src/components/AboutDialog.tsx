@@ -25,7 +25,7 @@ export function AboutDialog({
         </span>
         <div>
           <div className="about-name">轻文 LWD</div>
-          <div className="about-version">版本 0.1.0 · Tauri 2 + TipTap 3</div>
+          <div className="about-version">版本 0.2.0 · Tauri 2 + TipTap 3</div>
         </div>
       </div>
       <p className="about-text">

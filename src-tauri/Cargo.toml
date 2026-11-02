@@ -1,6 +1,6 @@
 [package]
 name = "qingwen"
-version = "0.1.0"
+version = "0.2.0"
 description = "轻文 · 基于 Tauri 2 + TipTap 的跨平台轻量级富文本编辑器"
 authors = ["Qingwen"]
 edition = "2021"
