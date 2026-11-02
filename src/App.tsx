@@ -561,6 +561,20 @@ export default function App() {
     [applyPageLayout, pushToast],
   )
 
+  const adjustFirstLineIndent = useCallback(
+    (delta: number) => {
+      const tab = getTab(tabsRef.current, activeIdRef.current)
+      if (!tab) return
+      const next = Math.min(
+        3,
+        Math.max(0, tab.layout.firstLineIndent + delta),
+      )
+      if (next === tab.layout.firstLineIndent) return
+      applyPageLayout({ ...tab.layout, firstLineIndent: next })
+    },
+    [applyPageLayout],
+  )
+
   const saveTextDefaults = useCallback(
     (fontFamily: string, fontSize: number) => {
       const tab = getTab(tabsRef.current, activeIdRef.current)
@@ -1707,27 +1721,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <TopBar
-        title={activeTab?.title ?? '无标题'}
-        path={activeTab?.path ?? null}
-        dirty={activeTab?.dirty ?? false}
-        saveState={activeTab?.saveState ?? 'idle'}
-        lastSavedAt={activeTab?.lastSavedAt ?? null}
-        previewMode={previewMode}
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen((value) => !value)}
-        onNewTab={createRootTab}
-        onOpen={requestOpen}
-        onSave={() => void performSave(activeIdRef.current)}
-        onExport={(format) => void requestExport(format)}
-        onToggleFind={find ? closeFind : () => openFind('find')}
-        onShowShortcuts={() => setShortcutsOpen(true)}
-        onShowAbout={() => setAboutOpen(true)}
-        onOpenSync={() => setSyncOpen(true)}
-        onCloudUpload={requestCloudUpload}
-        onCloudDownload={() => void requestCloudDownload()}
-      />
-
       <div className="app-body">
         <TabSidebar
           tabs={tabs}
@@ -1745,22 +1738,46 @@ export default function App() {
         />
 
         <div className="main-column">
-          {activeEditor ? (
-            <Toolbar
-              editor={activeEditor}
-              onOpenImage={() => void requestInsertImage()}
-              onOpenLink={openLinkDialog}
-              onOpenFind={openFind}
-              onOpenPageSetup={() => setPageSetupOpen(true)}
-              fontDefaults={{
-                fontFamily: activeTab?.layout.fontFamily ?? '',
-                fontSize: activeTab?.layout.fontSize ?? 16,
-              }}
-              onSaveTextDefaults={saveTextDefaults}
+          <div className="toolbar-shell">
+            <TopBar
+              title={activeTab?.title ?? '无标题'}
+              path={activeTab?.path ?? null}
+              dirty={activeTab?.dirty ?? false}
+              saveState={activeTab?.saveState ?? 'idle'}
+              lastSavedAt={activeTab?.lastSavedAt ?? null}
+              previewMode={previewMode}
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((value) => !value)}
+              onNewTab={createRootTab}
+              onOpen={requestOpen}
+              onSave={() => void performSave(activeIdRef.current)}
+              onExport={(format) => void requestExport(format)}
+              onToggleFind={find ? closeFind : () => openFind('find')}
+              onShowShortcuts={() => setShortcutsOpen(true)}
+              onShowAbout={() => setAboutOpen(true)}
+              onOpenSync={() => setSyncOpen(true)}
+              onCloudUpload={requestCloudUpload}
+              onCloudDownload={() => void requestCloudDownload()}
             />
-          ) : (
-            <div className="toolbar toolbar-loading" aria-hidden="true" />
-          )}
+            {activeEditor ? (
+              <Toolbar
+                editor={activeEditor}
+                onOpenImage={() => void requestInsertImage()}
+                onOpenLink={openLinkDialog}
+                onOpenFind={openFind}
+                onOpenPageSetup={() => setPageSetupOpen(true)}
+                fontDefaults={{
+                  fontFamily: activeTab?.layout.fontFamily ?? '',
+                  fontSize: activeTab?.layout.fontSize ?? 16,
+                }}
+                onSaveTextDefaults={saveTextDefaults}
+                firstLineIndent={activeTab?.layout.firstLineIndent ?? 0}
+                onAdjustFirstLineIndent={adjustFirstLineIndent}
+              />
+            ) : (
+              <div className="toolbar toolbar-loading" aria-hidden="true" />
+            )}
+          </div>
 
           <main className="workspace" ref={workspaceRef}>
             {tabs.map((tab) => (

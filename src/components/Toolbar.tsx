@@ -11,6 +11,8 @@ import {
   Eraser,
   Highlighter,
   Image as ImageIcon,
+  IndentDecrease,
+  IndentIncrease,
   Italic,
   Link2,
   List,
@@ -72,6 +74,8 @@ interface ToolbarProps {
   onOpenPageSetup: () => void
   fontDefaults: { fontFamily: string; fontSize: number }
   onSaveTextDefaults: (fontFamily: string, fontSize: number) => void
+  firstLineIndent: number
+  onAdjustFirstLineIndent: (delta: number) => void
 }
 
 interface SelectButtonProps {
@@ -143,6 +147,8 @@ export function Toolbar({
   onOpenPageSetup,
   fontDefaults,
   onSaveTextDefaults,
+  firstLineIndent,
+  onAdjustFirstLineIndent,
 }: ToolbarProps) {
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0)
 
@@ -554,6 +560,22 @@ export function Toolbar({
           label="两端对齐"
           active={editor.isActive({ textAlign: 'justify' })}
           onClick={() => editor.chain().focus().setTextAlign('justify').run()}
+        />
+      </div>
+
+      <div className="tool-group">
+        <span className="group-caption">首行</span>
+        <ToolButton
+          icon={IndentDecrease}
+          label={`减少首行缩进（当前 ${firstLineIndent} 字符）`}
+          disabled={firstLineIndent <= 0}
+          onClick={() => onAdjustFirstLineIndent(-1)}
+        />
+        <ToolButton
+          icon={IndentIncrease}
+          label={`增加首行缩进（当前 ${firstLineIndent} 字符）`}
+          disabled={firstLineIndent >= 3}
+          onClick={() => onAdjustFirstLineIndent(1)}
         />
       </div>
 

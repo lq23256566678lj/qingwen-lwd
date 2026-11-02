@@ -10,13 +10,13 @@
 
 ## 下载
 
-已发布 **v0.2.0**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.2.0)
+已发布 **v0.2.1**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.2.1)
 
 | 平台 | 安装包 |
 | --- | --- |
-| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD_0.2.0_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD_0.2.0_x64_en-US.msi) |
-| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD_0.2.0_universal.dmg) |
-| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD_0.2.0_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD_0.2.0_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.0/Qingwen.LWD-0.2.0-1.x86_64.rpm) |
+| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_x64_en-US.msi) |
+| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_universal.dmg) |
+| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD-0.2.1-1.x86_64.rpm) |
 
 安装包由 GitHub Actions 在 Windows/macOS/Linux 上构建，均未代码签名；Windows SmartScreen 与 macOS Gatekeeper 可能提示，需手动允许。Windows 便携版可由本地源码构建，不作为 Release 资产提供。
 
@@ -31,7 +31,7 @@
 | 图片 | 工具栏插入、剪贴板粘贴、拖入窗口、拖拽缩放、data URL 内嵌、自动压缩 |
 | 查找替换 | 全文查找、上一个/下一个、区分大小写、单条替换、全部替换、命中计数 |
 | 标签页 | 竖向文档树、任意层级子标签页、拖拽挂到其它标签页下、双击重命名、折叠/展开、关闭子树、独立撤销栈 |
-| 页面 | A4 21 × 29.7 cm；行距、上下左右页边距（0–5 cm）、默认字体/字号、正文首行缩进；可保存为默认值 |
+| 页面 | A4 21 × 29.7 cm；行距、上下左右页边距（0–5 cm）、默认字体/字号、正文首行缩进；工具栏可直接增减首行缩进，可保存为默认值 |
 | 文档 | 字数/字符统计、未保存状态、按标签页自动保存、工作区会话恢复、关闭前保存提醒 |
 | 本地保存 | 可指定默认文件夹，不使用 WebDAV 时新建/自动保存直接写入 `标题.lwd`，适合交给 OneDrive/坚果云/百度网盘同步 |
 | 云盘 | WebDAV 目录同步，手动上传/下载（覆盖式），60s 本地自动保存 + 300s 云盘自动上传，凭据存入系统钥匙串 |
@@ -244,7 +244,7 @@ pnpm validate:lwd
 - **行距**：1.0–2.5 倍。
 - **默认字体 / 字号**：可在这里选择，也可以把光标处正在使用的字体/字号保存为默认。
 - **页边距**：上、下、左、右分别可调，范围 **0–5 cm**；也可以一键使用极窄 0.5 / 窄 1.5 / 普通 2.5 / 宽 3.5 / 5 cm 预设。左右各 5 cm 时正文宽度仍有 11 cm。
-- **首行缩进**：0–3 字符，只作用于正文段落；标题、列表、表格、引用和代码块不缩进。
+- **首行缩进**：0–3 字符，只作用于正文段落；标题、列表、表格、引用和代码块不缩进。工具栏“首行”旁的两个按钮可直接按 1 字符增减，不需要打开页面设置。
 
 两个动作：
 

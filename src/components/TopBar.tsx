@@ -16,7 +16,6 @@ import {
 
 import {
   formatClock,
-  formatDateTime,
 } from '../lib/text'
 import type { ExportFormat, SaveState } from '../lib/types'
 import { Popover } from './ui'
@@ -104,7 +103,10 @@ export function TopBar({
 
       <div className="topbar-separator" />
 
-      <div className="doc-identity">
+      <div
+        className="doc-identity"
+        title={path ?? '尚未保存到文件'}
+      >
         <div className="doc-title-row">
           <span className="doc-title" title={title}>
             {title || '无标题'}
@@ -116,13 +118,6 @@ export function TopBar({
               浏览器预览
             </span>
           ) : null}
-        </div>
-        <div
-          className="doc-path"
-          title={path ?? '尚未保存到文件'}
-        >
-          {path ?? '尚未保存到文件'}
-          {lastSavedAt ? ` · ${formatDateTime(lastSavedAt)}` : ''}
         </div>
       </div>
 
