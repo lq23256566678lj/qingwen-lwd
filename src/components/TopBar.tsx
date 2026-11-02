@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Info,
   Keyboard,
+  Link2,
   PanelLeftClose,
   PanelLeftOpen,
   Save,
@@ -39,6 +40,7 @@ interface TopBarProps {
   onOpenSync: () => void
   onCloudUpload: () => void
   onCloudDownload: () => void
+  onRepairAssociation: () => void
 }
 
 export function TopBar({
@@ -60,6 +62,7 @@ export function TopBar({
   onOpenSync,
   onCloudUpload,
   onCloudDownload,
+  onRepairAssociation,
 }: TopBarProps) {
   const statusText =
     saveState === 'saving'
@@ -240,6 +243,17 @@ export function TopBar({
               >
                 <Cloud size={14} />
                 云盘同步设置…
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  onRepairAssociation()
+                  close()
+                }}
+              >
+                <Link2 size={14} />
+                修复 .lwd 文件关联…
               </button>
               <button
                 type="button"

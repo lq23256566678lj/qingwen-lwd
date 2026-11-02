@@ -10,13 +10,13 @@
 
 ## 下载
 
-已发布 **v0.2.2**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.2.2)
+已发布 **v0.3.0**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.3.0)
 
 | 平台 | 安装包 |
 | --- | --- |
-| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_x64_en-US.msi) |
-| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_universal.dmg) |
-| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD-0.2.2-1.x86_64.rpm) |
+| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD_0.3.0_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD_0.3.0_x64_en-US.msi) |
+| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD_0.3.0_universal.dmg) |
+| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD_0.3.0_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD_0.3.0_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.3.0/Qingwen.LWD-0.3.0-1.x86_64.rpm) |
 
 安装包由 GitHub Actions 在 Windows/macOS/Linux 上构建，均未代码签名；Windows SmartScreen 与 macOS Gatekeeper 可能提示，需手动允许。Windows 便携版可由本地源码构建，不作为 Release 资产提供。
 
@@ -33,6 +33,7 @@
 | 标签页 | 竖向文档树、任意层级子标签页、拖拽挂到其它标签页下、双击重命名、折叠/展开、关闭子树、独立撤销栈 |
 | 页面 | A4 21 × 29.7 cm；行距、上下左右页边距（0–5 cm）、默认字体/字号、正文首行缩进；工具栏可直接增减首行缩进，可保存为默认值 |
 | 文档 | 字数/字符统计、未保存状态、按标签页自动保存、工作区会话恢复、关闭前保存提醒 |
+| 文件关联 | 安装包注册 `.lwd` 类型；双击文件直接打开，已运行时复用同一个窗口；菜单可修复关联 |
 | 本地保存 | 可指定默认文件夹，不使用 WebDAV 时新建/自动保存直接写入 `标题.lwd`，适合交给 OneDrive/坚果云/百度网盘同步 |
 | 云盘 | WebDAV 目录同步，手动上传/下载（覆盖式），60s 本地自动保存 + 300s 云盘自动上传，凭据存入系统钥匙串 |
 | 平台 | Windows / macOS / Linux 原生菜单，⌘ / Ctrl 快捷键自动适配，中文输入法友好 |
@@ -135,6 +136,7 @@ qingwen/
 前端只通过以下命令访问系统：
 
 - `read_document` / `save_document`
+- `take_pending_open_files` / `repair_lwd_association`
 - `save_draft` / `load_draft` / `clear_draft`
 - `read_image_as_data_url`
 - `export_document`
@@ -209,7 +211,7 @@ pnpm validate:lwd
 | 检查 | 结果 |
 | --- | --- |
 | `tsc --noEmit` | 通过 |
-| Vite 8 生产构建（2136 个模块） | 通过，产物约 804 KB（gzip 251 KB） |
+| Vite 8 生产构建（2136 个模块） | 通过，产物约 805 KB（gzip 251 KB） |
 | `cargo fmt --check` | 通过 |
 | 本地 MSVC `cargo check` | 通过（Tauri 2.12.5 全量依赖） |
 | 本地 MSVC `cargo test --release --lib` | 通过（本地文档创建/同名编号/重命名/标题元数据） |
@@ -254,6 +256,16 @@ pnpm validate:lwd
 工具栏字体/字号右侧的 **★** 按钮会读取当前光标处实际使用的字体和字号，一键保存为默认；它同时更新当前标签页的正文基准样式。未单独设置格式的文字使用默认字体/字号，工具栏仍可对选区覆盖。
 
 当前版式写入 `.lwd` 的 `meta.layout`，重新打开文档会恢复；旧文件只有单值 `margin` 时会自动换算成四边 cm。HTML 导出也会带上 A4 页边距、行距、默认字体/字号和首行缩进。
+
+## 双击打开 .lwd
+
+- 安装包会在系统注册 `.lwd` 文件类型和“轻文 LWD”打开方式。
+- 双击 `.lwd` 会启动应用并打开该文件；应用已运行时复用同一个窗口，把文件作为新标签页打开。
+- 也可以把文件拖入窗口，或使用 **文件 → 打开**。
+- 如果 Windows 每次都弹出“打开方式”，点击右上角 **ⓘ 更多 → 修复 .lwd 文件关联…**：
+  - 应用会写入当前用户的文件关联并打开“默认应用”设置；
+  - 在设置中把 `.lwd` 的默认应用选为 **轻文 LWD**，勾选“始终使用”；
+  - Windows 10/11 出于安全限制，不允许应用静默抢占默认程序，所以这一步只能由用户确认一次。
 
 ## 本地默认保存文件夹
 

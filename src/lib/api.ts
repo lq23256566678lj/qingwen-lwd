@@ -155,6 +155,14 @@ export function renameLocalDocument(
   })
 }
 
+export function takePendingOpenFiles(): Promise<string[]> {
+  return invoke<string[]>('take_pending_open_files')
+}
+
+export function repairLwdAssociation(): Promise<string> {
+  return invoke<string>('repair_lwd_association')
+}
+
 export function quitApp(): Promise<void> {
   return invoke('quit_app')
 }

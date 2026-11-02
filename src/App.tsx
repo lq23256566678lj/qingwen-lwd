@@ -33,7 +33,9 @@ import {
   readDocument,
   readWorkspaceSession,
   renameLocalDocument,
+  repairLwdAssociation,
   saveSyncSettings as apiSaveSyncSettings,
+  takePendingOpenFiles,
   uploadToWebDav,
   writeDocument,
   writeWorkspaceSession,
@@ -1015,6 +1017,30 @@ export default function App() {
     [activateTab, commitTabs, isPristineBlank, pushToast, scheduleSession],
   )
 
+  const openPendingFiles = useCallback(async () => {
+    try {
+      const paths = await takePendingOpenFiles()
+      for (const path of paths) {
+        await openPath(path)
+      }
+    } catch (error) {
+      pushToast(`打开启动文件失败：${errorMessage(error)}`, 'error')
+    }
+  }, [openPath, pushToast])
+
+  const repairAssociation = useCallback(async () => {
+    if (!IS_TAURI) {
+      pushToast('文件关联设置仅在桌面应用中可用', 'info')
+      return
+    }
+    try {
+      const message = await repairLwdAssociation()
+      pushToast(message, 'success')
+    } catch (error) {
+      pushToast(`设置文件关联失败：${errorMessage(error)}`, 'error')
+    }
+  }, [pushToast])
+
   const requestOpen = useCallback(() => {
     if (!IS_TAURI) {
       pushToast('文件功能仅在桌面应用中可用', 'info')
@@ -1468,17 +1494,19 @@ export default function App() {
         }
         sessionReadyRef.current = true
         scheduleSession()
+        void openPendingFiles()
       })
       .catch((error) => {
         if (cancelled) return
         sessionReadyRef.current = true
         scheduleSession()
+        void openPendingFiles()
         pushToast(`恢复会话失败：${errorMessage(error)}`, 'error')
       })
     return () => {
       cancelled = true
     }
-  }, [pushToast, scheduleSession])
+  }, [openPendingFiles, pushToast, scheduleSession])
 
   useEffect(() => {
     if (!IS_TAURI) return
@@ -1662,6 +1690,26 @@ export default function App() {
   }, [pushToast])
 
   useEffect(() => {
+    if (!IS_TAURI) return
+    let unlisten: UnlistenFn | undefined
+    let disposed = false
+    listen<string>('lwd://open-file', (event) => {
+      void openPath(event.payload)
+    })
+      .then((fn) => {
+        if (disposed) fn()
+        else unlisten = fn
+      })
+      .catch((error) => {
+        pushToast(`注册打开文件事件失败：${errorMessage(error)}`, 'error')
+      })
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [openPath, pushToast])
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
@@ -1758,6 +1806,7 @@ export default function App() {
               onOpenSync={() => setSyncOpen(true)}
               onCloudUpload={requestCloudUpload}
               onCloudDownload={() => void requestCloudDownload()}
+              onRepairAssociation={() => void repairAssociation()}
             />
             {activeEditor ? (
               <Toolbar
