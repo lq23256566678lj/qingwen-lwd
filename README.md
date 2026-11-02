@@ -10,13 +10,13 @@
 
 ## 下载
 
-已发布 **v0.2.1**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.2.1)
+已发布 **v0.2.2**：[GitHub Releases](https://github.com/lq23256566678lj/qingwen-lwd/releases/tag/v0.2.2)
 
 | 平台 | 安装包 |
 | --- | --- |
-| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_x64_en-US.msi) |
-| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_universal.dmg) |
-| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD_0.2.1_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.1/Qingwen.LWD-0.2.1-1.x86_64.rpm) |
+| Windows x64 | [安装版（NSIS）](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_x64-setup.exe) · [MSI](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_x64_en-US.msi) |
+| macOS Universal | [DMG](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_universal.dmg) |
+| Linux x64 | [AppImage](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_amd64.AppImage) · [DEB](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD_0.2.2_amd64.deb) · [RPM](https://github.com/lq23256566678lj/qingwen-lwd/releases/download/v0.2.2/Qingwen.LWD-0.2.2-1.x86_64.rpm) |
 
 安装包由 GitHub Actions 在 Windows/macOS/Linux 上构建，均未代码签名；Windows SmartScreen 与 macOS Gatekeeper 可能提示，需手动允许。Windows 便携版可由本地源码构建，不作为 Release 资产提供。
 

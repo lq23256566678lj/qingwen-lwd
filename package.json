@@ -1,7 +1,7 @@
 {
   "name": "qingwen-lwd",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "轻文 · 基于 Tauri 2 + TipTap 的跨平台轻量级富文本编辑器",
   "engines": {

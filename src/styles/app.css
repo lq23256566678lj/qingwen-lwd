@@ -759,13 +759,24 @@ button:disabled {
   position: relative;
   width: 100%;
   min-height: 29.7cm;
-  padding: var(--lwd-margin-top, 2.5cm) var(--lwd-margin-right, 2.5cm)
-    var(--lwd-margin-bottom, 2.5cm) var(--lwd-margin-left, 2.5cm);
+  padding: 0;
   border: 1px solid #e8edf4;
   border-top: 3px solid #dbe7ff;
   border-radius: 4px;
   background: #fff;
   box-shadow: var(--shadow-paper);
+}
+
+/*
+ * 页边距放在 contenteditable 内部而不是 .paper 的 padding 上。
+ * 这样点击页面顶部/左右留白时也会落进编辑器，不会因为点到
+ * 非编辑区而沿用旧的、可能停在末尾的光标位置。
+ */
+.paper .ProseMirror {
+  min-height: calc(29.7cm - 4px);
+  padding: var(--lwd-margin-top, 2.5cm) var(--lwd-margin-right, 2.5cm)
+    var(--lwd-margin-bottom, 2.5cm) var(--lwd-margin-left, 2.5cm);
+  box-sizing: border-box;
 }
 
 .paper:hover {
@@ -1466,6 +1477,10 @@ button:disabled {
   .paper {
     min-height: 0;
     aspect-ratio: 210 / 297;
+  }
+
+  .paper .ProseMirror {
+    min-height: 100%;
   }
 }
 

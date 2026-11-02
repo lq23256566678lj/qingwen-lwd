@@ -299,7 +299,7 @@ export default function App() {
       editorRef.current = editor
       setActiveEditor(editor)
       window.requestAnimationFrame(() => {
-        if (editorRef.current === editor) editor.commands.focus()
+        if (editorRef.current === editor) editor.commands.focus('start')
       })
     }
   }, [])
@@ -764,7 +764,7 @@ export default function App() {
         remoteUrlForTab(tab, settings.url),
       )
       editor.commands.setContent(loaded.document, { emitUpdate: false })
-      editor.commands.focus()
+      editor.commands.focus('start')
 
       const layout = normalizeLayout(loaded.meta.layout ?? tab.layout)
       const nextRevision = (revisionRef.current.get(id) ?? 0) + 1
