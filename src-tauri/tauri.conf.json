@@ -34,8 +34,8 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
-    "shortDescription": "轻量级富文本编辑器（.lwd）",
-    "longDescription": "轻文是一款基于 Tauri 2 与 TipTap 的跨平台轻量级富文本编辑器，支持表格、图片、查找替换与自动保存，使用自包含的 .lwd JSON 文档格式。",
+    "shortDescription": "Lightweight rich text editor (.lwd)",
+    "longDescription": "Qingwen LWD is a cross-platform lightweight rich text editor built with Tauri 2 and TipTap. It supports tables, images, find/replace and autosave, using the self-contained .lwd JSON format.",
     "copyright": "Copyright © 2026 Qingwen",
     "icon": [
       "icons/32x32.png",
@@ -51,7 +51,7 @@
           "lwd"
         ],
         "name": "Qingwen LWD Document",
-        "description": "轻文 LWD 文档",
+        "description": "Qingwen LWD Document",
         "mimeType": "application/x-lwd",
         "role": "Editor"
       }
