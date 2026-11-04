@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
 use printpdf::*;
 
 use crate::model::{Block, BlockKind, Document};
@@ -9,6 +10,17 @@ use crate::model::{Block, BlockKind, Document};
 const A4_WIDTH_MM: f32 = 210.0;
 const A4_HEIGHT_MM: f32 = 297.0;
 const MM_PER_POINT: f32 = 25.4 / 72.0;
+
+struct PdfImage {
+    width: u32,
+    height: u32,
+    rgb: Vec<u8>,
+}
+
+enum PdfItem {
+    Line(String, f32),
+    Image(PdfImage, f32, f32),
+}
 
 pub fn export_pdf(
     path: &Path,
@@ -30,8 +42,8 @@ pub fn export_pdf(
     let content_width = (page_width - left - right).max(40.0);
     let usable_height = (page_height - top - bottom).max(40.0);
 
-    let mut pages: Vec<Vec<(String, f32)>> = Vec::new();
-    let mut current: Vec<(String, f32)> = Vec::new();
+    let mut pages: Vec<Vec<PdfItem>> = Vec::new();
+    let mut current: Vec<PdfItem> = Vec::new();
     let mut y = usable_height;
 
     for block in &document.blocks {
@@ -41,6 +53,24 @@ pub fn export_pdf(
                 y = usable_height;
             }
             continue;
+        }
+        if matches!(block.kind, BlockKind::Image) {
+            if let Some(image) = decode_image(block) {
+                let mut width = content_width;
+                let mut height = width * image.height as f32 / image.width.max(1) as f32;
+                if height > usable_height * 0.9 {
+                    let scale = usable_height * 0.9 / height;
+                    width *= scale;
+                    height *= scale;
+                }
+                if y < height {
+                    pages.push(std::mem::take(&mut current));
+                    y = usable_height;
+                }
+                current.push(PdfItem::Image(image, width, height));
+                y -= height + (layout.font_size * MM_PER_POINT * 0.45).max(1.0);
+                continue;
+            }
         }
         let font_size = match block.kind {
             BlockKind::Heading(level) => layout.font_size + (4.0 - level as f32).max(1.0) * 3.0,
@@ -53,7 +83,7 @@ pub fn export_pdf(
                 pages.push(std::mem::take(&mut current));
                 y = usable_height;
             }
-            current.push((line, font_size));
+            current.push(PdfItem::Line(line, font_size));
             y -= line_height;
         }
         let gap = (layout.font_size * MM_PER_POINT * 0.45).max(1.0)
@@ -66,7 +96,7 @@ pub fn export_pdf(
         }
     }
     if current.is_empty() {
-        current.push((title.to_string(), layout.font_size + 6.0));
+        current.push(PdfItem::Line(title.to_string(), layout.font_size + 6.0));
     }
     pages.push(current);
 
@@ -146,16 +176,40 @@ pub fn export_pdf(
             &font,
         );
         let mut y = page_height - top;
-        for (line, font_size) in lines {
-            let line_height = (*font_size * 1.55 * MM_PER_POINT).max(2.4);
-            y -= line_height;
-            layer.use_text(
-                line.as_str(),
-                *font_size,
-                Mm(left),
-                Mm(y),
-                &font,
-            );
+        for item in lines {
+            match item {
+                PdfItem::Line(text, font_size) => {
+                    let line_height = (*font_size * 1.55 * MM_PER_POINT).max(2.4);
+                    y -= line_height;
+                    layer.use_text(text.as_str(), *font_size, Mm(left), Mm(y), &font);
+                }
+                PdfItem::Image(image, width, height) => {
+                    y -= *height;
+                    let base_width = image.width as f32 / 300.0 * 25.4;
+                    let scale = *width / base_width.max(1.0);
+                    let transform = ImageTransform {
+                        translate_x: Some(Mm(left)),
+                        translate_y: Some(Mm(y)),
+                        scale_x: Some(scale),
+                        scale_y: Some(scale),
+                        ..Default::default()
+                    };
+                    let pdf_image = Image {
+                        image: ImageXObject {
+                            width: Px(image.width as usize),
+                            height: Px(image.height as usize),
+                            color_space: ColorSpace::Rgb,
+                            bits_per_component: ColorBits::Bit8,
+                            interpolate: true,
+                            image_data: image.rgb.clone(),
+                            image_filter: None,
+                            smask: None,
+                            clipping_bbox: None,
+                        },
+                    };
+                    pdf_image.add_to_layer(layer.clone(), transform);
+                }
+            }
         }
     }
 
@@ -184,6 +238,36 @@ fn find_cjk_font() -> Result<PathBuf, String> {
         }
     }
     Err("找不到可嵌入 PDF 的中文字体".to_string())
+}
+
+fn decode_image(block: &Block) -> Option<PdfImage> {
+    let src = block
+        .raw
+        .as_ref()?
+        .get("attrs")?
+        .get("src")?
+        .as_str()?;
+    let (_, encoded) = src.split_once(";base64,")?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    let image = ::image::load_from_memory(&bytes).ok()?;
+    let rgba = image.to_rgba8();
+    let mut rgb = Vec::with_capacity((rgba.width() * rgba.height() * 3) as usize);
+    for pixel in rgba.pixels() {
+        let alpha = pixel[3] as u32;
+        let blend = |value: u8| -> u8 {
+            ((value as u32 * alpha + 255 * (255 - alpha)) / 255) as u8
+        };
+        rgb.push(blend(pixel[0]));
+        rgb.push(blend(pixel[1]));
+        rgb.push(blend(pixel[2]));
+    }
+    Some(PdfImage {
+        width: rgba.width(),
+        height: rgba.height(),
+        rgb,
+    })
 }
 
 fn block_lines(block: &Block, width_mm: f32, font_size: f32) -> Vec<String> {
@@ -259,6 +343,23 @@ mod tests {
             BlockKind::Paragraph,
             "PDF 导出测试：中文内容。".to_string(),
         ));
+        document.blocks.push(Block {
+            id: 2,
+            kind: BlockKind::Image,
+            text: String::new(),
+            marks: Vec::new(),
+            raw: Some(serde_json::json!({
+                "type": "image",
+                "attrs": {
+                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nXQAAAAASUVORK5CYII=",
+                    "alt": "test"
+                }
+            })),
+            table: None,
+            align: crate::model::TextAlign::Left,
+            continuation: false,
+            chunked: false,
+        });
         let message = export_pdf(&path, "测试", &document, &document.layout).unwrap();
         assert!(message.contains("页"));
         let bytes = std::fs::read(&path).unwrap();
