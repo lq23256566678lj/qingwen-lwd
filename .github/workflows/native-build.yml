@@ -96,7 +96,7 @@ jobs:
           PKG=deb-root
           mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/share/applications" "$PKG/usr/share/icons/hicolor/128x128/apps"
           cp native/target/release/qingwen-native "$PKG/usr/bin/qingwen-native"
-          cp qingwen/src-tauri/icons/128x128.png "$PKG/usr/share/icons/hicolor/128x128/apps/qingwen-native.png"
+          cp src-tauri/icons/128x128.png "$PKG/usr/share/icons/hicolor/128x128/apps/qingwen-native.png"
           cat > "$PKG/usr/share/applications/qingwen-native.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
