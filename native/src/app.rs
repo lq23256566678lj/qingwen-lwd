@@ -173,6 +173,7 @@ pub struct NativeApp {
     sidebar_visible: bool,
     page_count: usize,
     scroll_to_page: Option<usize>,
+    zoom: f32,
 }
 
 impl NativeApp {
@@ -247,6 +248,7 @@ impl NativeApp {
             sidebar_visible: true,
             page_count: 1,
             scroll_to_page: None,
+            zoom: 1.0,
         };
         app.new_tab();
         for path in lwd_args {
@@ -1457,6 +1459,22 @@ impl NativeApp {
                             self.change_block_kind(BlockKind::Code);
                         }
                     });
+                    ribbon_group(ui, "样式", |ui| {
+                        for (label, kind, size) in [
+                            ("正文", BlockKind::Paragraph, 14.0),
+                            ("标题 1", BlockKind::Heading(1), 20.0),
+                            ("标题 2", BlockKind::Heading(2), 17.0),
+                            ("引用", BlockKind::Quote, 14.0),
+                            ("代码", BlockKind::Code, 13.0),
+                        ] {
+                            if ui
+                                .add(egui::Button::new(RichText::new(label).size(size)))
+                                .clicked()
+                            {
+                                self.change_block_kind(kind);
+                            }
+                        }
+                    });
                     ribbon_group(ui, "编辑", |ui| {
                         if ui.button("查找").clicked() {
                             self.find_open = true;
@@ -1558,7 +1576,16 @@ impl NativeApp {
                     });
                     ribbon_group(ui, "窗口", |ui| {
                         ui.label("页面视图");
-                        ui.label("缩放 100%");
+                        if ui.button("－").clicked() {
+                            self.zoom = (self.zoom - 0.1).max(0.6);
+                        }
+                        if ui.button("100%").clicked() {
+                            self.zoom = 1.0;
+                        }
+                        if ui.button("＋").clicked() {
+                            self.zoom = (self.zoom + 0.1).min(2.0);
+                        }
+                        ui.label(format!("{:.0}%", self.zoom * 100.0));
                     });
                 });
             }
@@ -1888,7 +1915,8 @@ impl NativeApp {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        let width = PAGE_WIDTH.min((ui.available_width() - 32.0).max(420.0));
+                        let width = (PAGE_WIDTH * self.zoom)
+                            .min((ui.available_width() - 32.0).max(420.0));
                         let scale = width / 21.0;
                         self.editor_pages(ui, width, scale);
                     });
@@ -1901,7 +1929,9 @@ impl NativeApp {
         let Some(tab) = self.tabs.get(active) else {
             return;
         };
-        let layout = tab.document.layout.clone();
+        let mut layout = tab.document.layout.clone();
+        let zoom = self.zoom;
+        layout.font_size *= zoom;
         let left = (layout.margins.left * scale).min(width * 0.4);
         let right = (layout.margins.right * scale).min(width * 0.4);
         let top = (layout.margins.top * scale).min(width * 0.4);
@@ -1954,6 +1984,7 @@ impl NativeApp {
         for (index, block) in self.tabs[active].document.blocks.iter().enumerate() {
             if matches!(block.kind, BlockKind::PageBreak) {
                 if !current.is_empty() {
+                    current.push(index);
                     pages.push(std::mem::take(&mut current));
                     used = 0.0;
                 }
@@ -2722,6 +2753,14 @@ fn render_one_block(
                         result.changed = true;
                     }
                 }
+            } else if matches!(kind, BlockKind::PageBreak) {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("┄┄┄  分页符  ┄┄┄")
+                            .small()
+                            .color(Color32::from_rgb(120, 132, 150)),
+                    );
+                });
             } else if matches!(kind, BlockKind::Raw("horizontalRule")) {
                 ui.separator();
             } else if matches!(kind, BlockKind::Image) {
