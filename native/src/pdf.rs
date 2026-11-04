@@ -72,6 +72,32 @@ pub fn export_pdf(
             doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Text")
         };
         let layer = doc.get_page(page).get_layer(layer);
+        if !layout.header_text.is_empty() {
+            layer.use_text(
+                layout.header_text.as_str(),
+                9.0,
+                Mm(left),
+                Mm(A4_HEIGHT_MM - (top * 0.45).max(4.0)),
+                &font,
+            );
+        }
+        if !layout.footer_text.is_empty() {
+            layer.use_text(
+                layout.footer_text.as_str(),
+                9.0,
+                Mm(left),
+                Mm((bottom * 0.45).max(4.0)),
+                &font,
+            );
+        }
+        let page_label = format!("第 {} / {} 页", page_index + 1, pages.len());
+        layer.use_text(
+            page_label.as_str(),
+            9.0,
+            Mm(A4_WIDTH_MM - right - 32.0),
+            Mm((bottom * 0.45).max(4.0)),
+            &font,
+        );
         let mut y = A4_HEIGHT_MM - top;
         for (line, font_size) in lines {
             let line_height = (*font_size * 1.55 * MM_PER_POINT).max(2.4);

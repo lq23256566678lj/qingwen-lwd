@@ -207,6 +207,10 @@ pub struct PageLayout {
     pub font_family: String,
     #[serde(rename = "fontSize")]
     pub font_size: f32,
+    #[serde(default)]
+    pub header_text: String,
+    #[serde(default)]
+    pub footer_text: String,
 }
 
 impl Default for PageLayout {
@@ -217,6 +221,8 @@ impl Default for PageLayout {
             first_line_indent: 0,
             font_family: String::new(),
             font_size: 16.0,
+            header_text: String::new(),
+            footer_text: String::new(),
         }
     }
 }

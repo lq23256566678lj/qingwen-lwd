@@ -1882,7 +1882,21 @@ impl NativeApp {
                             .show(ui, |ui| {
                                 ui.set_width(width);
                                 ui.set_min_height((width * 297.0 / 210.0).max(900.0));
-                                ui.add_space(top);
+                                if layout.header_text.is_empty() {
+                                    ui.add_space(top);
+                                } else {
+                                    ui.add_space((top * 0.25).max(4.0));
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(left);
+                                        ui.label(
+                                            RichText::new(&layout.header_text)
+                                                .small()
+                                                .color(Color32::from_gray(110)),
+                                        );
+                                        ui.add_space(right);
+                                    });
+                                    ui.add_space((top * 0.25).max(4.0));
+                                }
                                 ui.horizontal(|ui| {
                                     ui.add_space(left);
                                     ui.vertical(|ui| {
@@ -1891,7 +1905,29 @@ impl NativeApp {
                                     });
                                     ui.add_space(right);
                                 });
-                                ui.add_space(bottom);
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(left);
+                                    if !layout.footer_text.is_empty() {
+                                        ui.label(
+                                            RichText::new(&layout.footer_text)
+                                                .small()
+                                                .color(Color32::from_gray(110)),
+                                        );
+                                    }
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(Align::Center),
+                                        |ui| {
+                                            ui.add_space(right);
+                                            ui.label(
+                                                RichText::new("第 1 页")
+                                                    .small()
+                                                    .color(Color32::from_gray(110)),
+                                            );
+                                        },
+                                    );
+                                });
+                                ui.add_space((bottom * 0.25).max(4.0));
                             });
                     });
                 });
@@ -2270,6 +2306,22 @@ impl NativeApp {
                 ui.label("首行缩进（字符）");
                 changed |= ui
                     .add(egui::Slider::new(&mut layout.first_line_indent, 0..=4))
+                    .changed();
+                ui.label("页眉");
+                changed |= ui
+                    .add(
+                        TextEdit::singleline(&mut layout.header_text)
+                            .desired_width(360.0)
+                            .hint_text("页眉文字"),
+                    )
+                    .changed();
+                ui.label("页脚");
+                changed |= ui
+                    .add(
+                        TextEdit::singleline(&mut layout.footer_text)
+                            .desired_width(360.0)
+                            .hint_text("页脚文字"),
+                    )
                     .changed();
                 if changed {
                     tab.document.layout = layout.clone().normalized();
