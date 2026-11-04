@@ -1487,7 +1487,7 @@ impl NativeApp {
                     });
                     ribbon_group(ui, "页面", |ui| {
                         if ui.button("分页符").clicked() {
-                            self.status = "分页符将在后续版本加入".to_string();
+                            self.insert_page_break();
                         }
                         if ui.button("页眉页脚").clicked() {
                             self.status = "页眉页脚将在后续版本加入".to_string();
@@ -1607,6 +1607,36 @@ impl NativeApp {
             tab.document.layout.first_line_indent = next;
             tab.dirty = true;
         }
+    }
+
+    fn insert_page_break(&mut self) {
+        let id = self.new_block_id();
+        let focus = self.focus_block;
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        let position = focus
+            .and_then(|focus| {
+                tab.document
+                    .blocks
+                    .iter()
+                    .position(|block| block.id == focus)
+            })
+            .map(|index| index + 1)
+            .unwrap_or(tab.document.blocks.len());
+        tab.document.blocks.insert(
+            position,
+            Block {
+                id,
+                kind: BlockKind::PageBreak,
+                text: String::new(),
+                marks: Vec::new(),
+                raw: Some(serde_json::json!({ "type": "pageBreak" })),
+                table: None,
+            },
+        );
+        tab.dirty = true;
+        self.status = "已插入分页符".to_string();
     }
 
     fn table_action(&mut self, action: TableAction) {
@@ -1922,6 +1952,13 @@ impl NativeApp {
         let mut current: Vec<usize> = Vec::new();
         let mut used = 0.0_f32;
         for (index, block) in self.tabs[active].document.blocks.iter().enumerate() {
+            if matches!(block.kind, BlockKind::PageBreak) {
+                if !current.is_empty() {
+                    pages.push(std::mem::take(&mut current));
+                    used = 0.0;
+                }
+                continue;
+            }
             let height = estimate_block_height(block, &layout, content_width, &textures);
             if !current.is_empty() && used + height > usable_height {
                 pages.push(std::mem::take(&mut current));
@@ -1966,6 +2003,7 @@ impl NativeApp {
                 .show(ui, |ui| {
                     ui.set_width(width);
                     ui.set_min_height(page_height);
+                    draw_vertical_ruler(ui, page_height, top, bottom, scale);
                     if layout.header_text.is_empty() {
                         ui.add_space(top);
                     } else {
@@ -2730,6 +2768,63 @@ fn ribbon_group(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
         ui.label(RichText::new(label).small().color(Color32::GRAY));
     });
     ui.separator();
+}
+
+fn draw_vertical_ruler(ui: &mut Ui, page_height: f32, top: f32, bottom: f32, scale: f32) {
+    let origin = ui.min_rect().left_top();
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(origin.x + 5.0, origin.y),
+        egui::vec2(16.0, page_height),
+    );
+    let painter = ui.painter();
+    painter.rect_filled(rect, 2.0, Color32::from_rgb(246, 248, 252));
+    painter.rect_stroke(
+        rect,
+        2.0,
+        Stroke::new(1.0_f32, Color32::from_rgb(220, 227, 238)),
+        egui::StrokeKind::Inside,
+    );
+    let content_top = rect.top() + top;
+    let content_bottom = (rect.bottom() - bottom).max(content_top);
+    painter.rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(rect.left(), rect.top()),
+            egui::pos2(rect.right(), content_top),
+        ),
+        0.0,
+        Color32::from_rgb(232, 237, 247),
+    );
+    painter.rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(rect.left(), content_bottom),
+            egui::pos2(rect.right(), rect.bottom()),
+        ),
+        0.0,
+        Color32::from_rgb(232, 237, 247),
+    );
+    let mut cm = 0;
+    let mut y = content_top;
+    while y <= content_bottom && cm <= 30 {
+        let major = cm % 5 == 0;
+        painter.line_segment(
+            [
+                egui::pos2(rect.right() - if major { 9.0 } else { 5.0 }, y),
+                egui::pos2(rect.right(), y),
+            ],
+            Stroke::new(1.0_f32, Color32::from_rgb(145, 158, 178)),
+        );
+        if major {
+            painter.text(
+                egui::pos2(rect.left() + 1.0, y + 1.0),
+                egui::Align2::LEFT_TOP,
+                cm.to_string(),
+                FontId::proportional(8.0),
+                Color32::from_rgb(120, 132, 150),
+            );
+        }
+        cm += 1;
+        y += scale;
+    }
 }
 
 fn draw_ruler(ui: &mut Ui, page_width: f32, left: f32, right: f32, scale: f32) {

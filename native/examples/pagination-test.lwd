@@ -19,7 +19,7 @@
       "firstLineIndent": 0,
       "fontFamily": "",
       "fontSize": 16.0,
-      "header_text": "轻文 LWD · 自动分页测试",
+      "header_text": "轻文 LWD · 分页符测试",
       "footer_text": "轻文 LWD · 原生版"
     }
   },
@@ -52,6 +52,9 @@
             "text": "第 3 段。这是用于验证 Word 风格自动分页的原生测试内容。页面视图应当根据段落高度自动换页，并在每一页显示页眉、页脚和页码。页面视图应当根据段落高度自动换页，并在每一页显示页眉、页脚和页码。"
           }
         ]
+      },
+      {
+        "type": "pageBreak"
       },
       {
         "type": "paragraph",

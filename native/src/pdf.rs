@@ -30,6 +30,13 @@ pub fn export_pdf(
     let mut y = usable_height;
 
     for block in &document.blocks {
+        if matches!(block.kind, BlockKind::PageBreak) {
+            if !current.is_empty() {
+                pages.push(std::mem::take(&mut current));
+                y = usable_height;
+            }
+            continue;
+        }
         let font_size = match block.kind {
             BlockKind::Heading(level) => layout.font_size + (4.0 - level as f32).max(1.0) * 3.0,
             BlockKind::Code => layout.font_size * 0.9,

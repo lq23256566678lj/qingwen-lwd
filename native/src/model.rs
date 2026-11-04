@@ -71,6 +71,7 @@ pub enum BlockKind {
     Code,
     Image,
     Table,
+    PageBreak,
     Raw(&'static str),
 }
 
@@ -88,13 +89,14 @@ impl BlockKind {
             Self::Code => "代码块",
             Self::Image => "图片",
             Self::Table => "表格",
+            Self::PageBreak => "分页符",
             Self::Raw("horizontalRule") => "分隔线",
             Self::Raw(_) => "未支持内容",
         }
     }
 
     pub fn is_editable(&self) -> bool {
-        !matches!(self, Self::Raw(_) | Self::Image | Self::Table)
+        !matches!(self, Self::Raw(_) | Self::Image | Self::Table | Self::PageBreak)
     }
 }
 
@@ -338,6 +340,16 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 text,
                 marks: Vec::new(),
                 raw: None,
+                table: None,
+            });
+        }
+        "pageBreak" => {
+            out.push(Block {
+                id: 0,
+                kind: BlockKind::PageBreak,
+                text: String::new(),
+                marks: Vec::new(),
+                raw: Some(node.clone()),
                 table: None,
             });
         }
