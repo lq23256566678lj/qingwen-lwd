@@ -1483,258 +1483,160 @@ impl NativeApp {
         });
         ui.separator();
         ui.horizontal(|ui| {
-            for (tab, label) in [
-                (RibbonTab::Home, "开始"),
-                (RibbonTab::Insert, "插入"),
-                (RibbonTab::Layout, "布局"),
-                (RibbonTab::Table, "表格"),
-                (RibbonTab::View, "视图"),
+            self.block_kind_combo(ui);
+            ui.separator();
+            let current_family = self
+                .active_tab()
+                .map(|tab| tab.document.layout.font_family.clone())
+                .unwrap_or_default();
+            egui::ComboBox::from_id_salt("classic-font-family")
+                .selected_text(if current_family.is_empty() {
+                    "默认".to_string()
+                } else {
+                    current_family.clone()
+                })
+                .width(96.0)
+                .show_ui(ui, |ui| {
+                    for family in ["", "黑体", "楷体", "仿宋"] {
+                        let label = if family.is_empty() { "默认" } else { family };
+                        if ui.selectable_label(current_family == family, label).clicked() {
+                            self.set_font_family(family);
+                        }
+                    }
+                });
+            let current_size = self
+                .active_tab()
+                .map(|tab| tab.document.layout.font_size)
+                .unwrap_or(16.0);
+            egui::ComboBox::from_id_salt("classic-font-size")
+                .selected_text(format!("{current_size:.0}"))
+                .width(58.0)
+                .show_ui(ui, |ui| {
+                    for size in [12.0_f32, 14.0, 16.0, 18.0, 22.0, 26.0, 32.0] {
+                        if ui
+                            .selectable_label((current_size - size).abs() < 0.5, format!("{size:.0}"))
+                            .clicked()
+                        {
+                            self.set_font_size(size);
+                        }
+                    }
+                });
+            ui.separator();
+            let enabled = self.selection.is_some_and(|(_, start, end)| start < end);
+            for (label, action) in [
+                ("B", MarkAction::Bold),
+                ("I", MarkAction::Italic),
+                ("U", MarkAction::Underline),
+                ("S", MarkAction::Strike),
+                ("</>", MarkAction::Code),
+                ("高亮", MarkAction::Highlight),
+                ("清除", MarkAction::Clear),
             ] {
-                if ui
-                    .selectable_label(self.ribbon_tab == tab, RichText::new(label).strong())
-                    .clicked()
-                {
-                    self.ribbon_tab = tab;
+                if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                    self.pending_format = Some(action);
                 }
             }
+            ui.separator();
+            if ui.button("查找").clicked() {
+                self.find_open = true;
+                self.refresh_find_matches();
+            }
+            if ui.button("PDF").clicked() {
+                self.export_pdf_dialog();
+            }
+            if ui.button("打印").clicked() {
+                self.print_active();
+            }
+            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                if ui.button("保存").clicked() {
+                    self.save_dialog(false);
+                }
+                if ui
+                    .add_enabled(
+                        self.active_tab().is_some_and(|tab| !tab.redo.is_empty()),
+                        egui::Button::new("重做"),
+                    )
+                    .clicked()
+                {
+                    self.redo();
+                }
+                if ui
+                    .add_enabled(
+                        self.active_tab().is_some_and(|tab| !tab.undo.is_empty()),
+                        egui::Button::new("撤销"),
+                    )
+                    .clicked()
+                {
+                    self.undo();
+                }
+            });
         });
-        ui.separator();
-
-        match self.ribbon_tab {
-            RibbonTab::Home => {
-                ui.horizontal_wrapped(|ui| {
-                    ribbon_group(ui, "字族", |ui| {
-                        let current = self
-                            .active_tab()
-                            .map(|tab| tab.document.layout.font_family.clone())
-                            .unwrap_or_default();
-                        egui::ComboBox::from_id_salt("native-font-family")
-                            .selected_text(if current.is_empty() {
-                                "默认".to_string()
-                            } else {
-                                current.clone()
-                            })
-                            .show_ui(ui, |ui| {
-                                for family in ["", "黑体", "楷体", "仿宋"] {
-                                    let label = if family.is_empty() {
-                                        "默认"
-                                    } else {
-                                        family
-                                    };
-                                    if ui.selectable_label(current == family, label).clicked() {
-                                        self.set_font_family(family);
-                                    }
-                                }
-                            });
-                    });
-                    ribbon_group(ui, "字体", |ui| {
-                        let enabled = self.selection.is_some_and(|(_, start, end)| start < end);
-                        for (label, action) in [
-                            ("B", MarkAction::Bold),
-                            ("I", MarkAction::Italic),
-                            ("U", MarkAction::Underline),
-                            ("S", MarkAction::Strike),
-                            ("</>", MarkAction::Code),
-                            ("高亮", MarkAction::Highlight),
-                            ("清除格式", MarkAction::Clear),
-                        ] {
-                            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-                                self.pending_format = Some(action);
-                            }
-                        }
-                    });
-                    ribbon_group(ui, "段落", |ui| {
-                        self.block_kind_combo(ui);
-                        if ui.button("• 列表").clicked() {
-                            self.change_block_kind(BlockKind::Bullet);
-                        }
-                        if ui.button("1. 编号").clicked() {
-                            self.change_block_kind(BlockKind::Ordered);
-                        }
-                        if ui.button("引用").clicked() {
-                            self.change_block_kind(BlockKind::Quote);
-                        }
-                        if ui.button("代码").clicked() {
-                            self.change_block_kind(BlockKind::Code);
-                        }
-                    });
-                    ribbon_group(ui, "字号", |ui| {
-                        let current = self
-                            .active_tab()
-                            .map(|tab| tab.document.layout.font_size)
-                            .unwrap_or(16.0);
-                        for size in [12.0_f32, 14.0, 16.0, 18.0, 22.0, 26.0] {
-                            if ui
-                                .selectable_label((current - size).abs() < 0.5, size.to_string())
-                                .clicked()
-                            {
-                                self.set_font_size(size);
-                            }
-                        }
-                    });
-                    ribbon_group(ui, "样式", |ui| {
-                        for (label, kind, size) in [
-                            ("正文", BlockKind::Paragraph, 14.0),
-                            ("标题 1", BlockKind::Heading(1), 20.0),
-                            ("标题 2", BlockKind::Heading(2), 17.0),
-                            ("引用", BlockKind::Quote, 14.0),
-                            ("代码", BlockKind::Code, 13.0),
-                        ] {
-                            if ui
-                                .add(egui::Button::new(RichText::new(label).size(size)))
-                                .clicked()
-                            {
-                                self.change_block_kind(kind);
-                            }
-                        }
-                    });
-                    ribbon_group(ui, "对齐", |ui| {
-                        for (label, align) in [
-                            ("左", TextAlign::Left),
-                            ("中", TextAlign::Center),
-                            ("右", TextAlign::Right),
-                        ] {
-                            if ui.button(label).clicked() {
-                                self.set_alignment(align);
-                            }
-                        }
-                    });
-                    ribbon_group(ui, "编辑", |ui| {
-                        if ui.button("查找").clicked() {
-                            self.find_open = true;
-                            self.refresh_find_matches();
-                        }
-                        if ui.button("＋ 段落").clicked() {
-                            let id = self.focus_block.or_else(|| {
-                                self.active_tab().and_then(|tab| {
-                                    tab.document.blocks.last().map(|block| block.id)
-                                })
-                            });
-                            if let Some(id) = id {
-                                self.insert_block_after(id);
-                            }
-                        }
-                    });
-                });
+        ui.horizontal(|ui| {
+            for (label, align) in [
+                ("左", TextAlign::Left),
+                ("中", TextAlign::Center),
+                ("右", TextAlign::Right),
+            ] {
+                if ui.button(label).clicked() {
+                    self.set_alignment(align);
+                }
             }
-            RibbonTab::Insert => {
-                ui.horizontal_wrapped(|ui| {
-                    ribbon_group(ui, "插入", |ui| {
-                        if ui.button("图片").clicked() {
-                            self.insert_image_dialog();
-                        }
-                        if ui.button("表格").clicked() {
-                            self.insert_table();
-                        }
-                    });
-                    ribbon_group(ui, "图片宽度", |ui| {
-                        let percent = self.focused_image_width();
-                        let mut value = percent;
+            ui.separator();
+            if ui.button("• 列表").clicked() {
+                self.change_block_kind(BlockKind::Bullet);
+            }
+            if ui.button("1. 编号").clicked() {
+                self.change_block_kind(BlockKind::Ordered);
+            }
+            if ui.button("引用").clicked() {
+                self.change_block_kind(BlockKind::Quote);
+            }
+            if ui.button("代码").clicked() {
+                self.change_block_kind(BlockKind::Code);
+            }
+            ui.separator();
+            let current_line = self
+                .active_tab()
+                .map(|tab| tab.document.layout.line_height)
+                .unwrap_or(1.85);
+            egui::ComboBox::from_id_salt("classic-line-height")
+                .selected_text(format!("{current_line:.1}"))
+                .width(58.0)
+                .show_ui(ui, |ui| {
+                    for value in [1.0_f32, 1.25, 1.5, 1.85, 2.0] {
                         if ui
-                            .add(egui::Slider::new(&mut value, 20.0..=100.0).suffix("%"))
-                            .changed()
+                            .selectable_label((current_line - value).abs() < 0.05, format!("{value:.2}"))
+                            .clicked()
                         {
-                            self.set_image_width(value);
+                            self.set_line_spacing(value);
                         }
-                    });
-                    ribbon_group(ui, "页面", |ui| {
-                        if ui.button("分页符").clicked() {
-                            self.insert_page_break();
-                        }
-                        if ui.button("页眉页脚").clicked() {
-                            self.status = "页眉页脚将在后续版本加入".to_string();
-                        }
-                    });
-                    ribbon_group(ui, "输出", |ui| {
-                        if ui.button("PDF").clicked() {
-                            self.export_pdf_dialog();
-                        }
-                        if ui.button("打印").clicked() {
-                            self.print_active();
-                        }
-                    });
+                    }
                 });
+            ui.separator();
+            if ui.button("图片").clicked() {
+                self.insert_image_dialog();
             }
-            RibbonTab::Layout => {
-                ui.horizontal_wrapped(|ui| {
-                    ribbon_group(ui, "页面", |ui| {
-                        if ui.button("页面设置").clicked() {
-                            self.page_setup_open = true;
-                        }
-                        ui.label("A4 · 21 × 29.7 cm");
-                    });
-                    ribbon_group(ui, "页边距", |ui| {
-                        if ui.button("普通").clicked() {
-                            self.apply_margin_preset(2.54, 2.54, 2.54, 2.54);
-                        }
-                        if ui.button("窄").clicked() {
-                            self.apply_margin_preset(1.27, 1.27, 1.27, 1.27);
-                        }
-                        if ui.button("宽").clicked() {
-                            self.apply_margin_preset(2.54, 2.54, 5.08, 5.08);
-                        }
-                    });
-                    ribbon_group(ui, "段落", |ui| {
-                        if ui.button("首行缩进 +1").clicked() {
-                            self.adjust_first_line_indent(1);
-                        }
-                        if ui.button("首行缩进 -1").clicked() {
-                            self.adjust_first_line_indent(-1);
-                        }
-                    });
-                });
+            if ui.button("表格").clicked() {
+                self.insert_table();
             }
-            RibbonTab::Table => {
-                ui.horizontal_wrapped(|ui| {
-                    ribbon_group(ui, "行列", |ui| {
-                        if ui.button("＋ 行").clicked() {
-                            self.table_action(TableAction::AddRow);
-                        }
-                        if ui.button("＋ 列").clicked() {
-                            self.table_action(TableAction::AddColumn);
-                        }
-                        if ui.button("－ 行").clicked() {
-                            self.table_action(TableAction::RemoveRow);
-                        }
-                        if ui.button("－ 列").clicked() {
-                            self.table_action(TableAction::RemoveColumn);
-                        }
-                    });
-                    ribbon_group(ui, "插入", |ui| {
-                        if ui.button("3×3 表格").clicked() {
-                            self.insert_table();
-                        }
-                    });
-                    ui.label("选中表格后使用；单元格文字可直接编辑");
-                });
+            if ui.button("分页").clicked() {
+                self.insert_page_break();
             }
-            RibbonTab::View => {
-                ui.horizontal_wrapped(|ui| {
-                    ribbon_group(ui, "显示", |ui| {
-                        if ui.checkbox(&mut self.show_ruler, "显示标尺").changed() {
-                            // 下一帧按新状态绘制
-                        }
-                        let mut sidebar = self.sidebar_open();
-                        if ui.checkbox(&mut sidebar, "显示文档树").changed() {
-                            self.set_sidebar_open(sidebar);
-                        }
-                    });
-                    ribbon_group(ui, "窗口", |ui| {
-                        ui.label("页面视图");
-                        if ui.button("－").clicked() {
-                            self.zoom = (self.zoom - 0.1).max(0.6);
-                        }
-                        if ui.button("100%").clicked() {
-                            self.zoom = 1.0;
-                        }
-                        if ui.button("＋").clicked() {
-                            self.zoom = (self.zoom + 0.1).min(2.0);
-                        }
-                        ui.label(format!("{:.0}%", self.zoom * 100.0));
-                    });
-                });
+            if ui.button("页面设置").clicked() {
+                self.page_setup_open = true;
             }
-        }
+            ui.separator();
+            if ui.button("－").clicked() {
+                self.zoom = (self.zoom - 0.1).max(0.6);
+            }
+            if ui.button("100%").clicked() {
+                self.zoom = 1.0;
+            }
+            if ui.button("＋").clicked() {
+                self.zoom = (self.zoom + 0.1).min(2.0);
+            }
+            ui.label(format!("{:.0}%", self.zoom * 100.0));
+        });
 
         if self.find_open {
             self.find_bar(ui);
@@ -1826,6 +1728,14 @@ impl NativeApp {
             return;
         };
         tab.document.layout.font_family = family.to_string();
+        tab.dirty = true;
+    }
+
+    fn set_line_spacing(&mut self, value: f32) {
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        tab.document.layout.line_height = value.clamp(1.0, 2.5);
         tab.dirty = true;
     }
 
@@ -2555,7 +2465,9 @@ impl NativeApp {
     }
 
     fn status_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::bottom("native-status").show(ctx, |ui| {
+        egui::TopBottomPanel::bottom("native-status")
+            .exact_height(28.0)
+            .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let page_count = self.page_count;
                 let current_page = self.scroll_to_page.unwrap_or(0);
@@ -2570,6 +2482,14 @@ impl NativeApp {
                 let words = tab.map(|tab| tab.document.word_count()).unwrap_or(0);
                 let chars = tab.map(|tab| tab.document.character_count()).unwrap_or(0);
                 ui.label(format!("第 {} 页 / 共 {} 页", current_page + 1, page_count));
+                if let Some(layout) = self.active_tab().map(|tab| tab.document.layout.clone()) {
+                    ui.separator();
+                    ui.label(format!(
+                        "{} · 页边距 {:.0}mm",
+                        if layout.landscape { "A4 横向" } else { "A4 纵向" },
+                        layout.margins.top * 10.0
+                    ));
+                }
                 ui.separator();
                 ui.label(format!("{words} 词 · {chars} 字符"));
                 ui.separator();
