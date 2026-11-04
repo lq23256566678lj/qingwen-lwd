@@ -275,4 +275,41 @@ mod tests {
         assert_eq!(loaded.document.blocks[0].table.as_ref().unwrap().rows.len(), 3);
         let _ = fs::remove_file(path);
     }
+
+    #[test]
+    fn layout_fields_roundtrip() {
+        let folder = std::env::temp_dir().join("qingwen-native-layout");
+        fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("layout.lwd");
+        let created = "2026-01-01T00:00:00Z".to_string();
+        let mut layout = PageLayout::default();
+        layout.landscape = true;
+        layout.page_border = true;
+        layout.watermark = "水印".to_string();
+        layout.paragraph_spacing = 0.5;
+        layout.page_number_start = 3;
+        layout.header_text = "页眉".to_string();
+        layout.footer_text = "页脚".to_string();
+        layout.header_align = crate::model::TextAlign::Center;
+        layout.footer_align = crate::model::TextAlign::Right;
+        layout.different_first_page = true;
+        let mut document = Document::blank(layout);
+        document
+            .blocks
+            .push(Block::new(1, BlockKind::Paragraph, "内容".into()));
+        save_lwd(&path, &document, "版式测试", &created).unwrap();
+        let loaded = read_lwd(&path).unwrap();
+        let layout = loaded.document.layout;
+        assert!(layout.landscape);
+        assert!(layout.page_border);
+        assert_eq!(layout.watermark, "水印");
+        assert!((layout.paragraph_spacing - 0.5).abs() < 0.001);
+        assert_eq!(layout.page_number_start, 3);
+        assert_eq!(layout.header_text, "页眉");
+        assert_eq!(layout.footer_text, "页脚");
+        assert_eq!(layout.header_align, crate::model::TextAlign::Center);
+        assert_eq!(layout.footer_align, crate::model::TextAlign::Right);
+        assert!(layout.different_first_page);
+        let _ = fs::remove_file(path);
+    }
 }
