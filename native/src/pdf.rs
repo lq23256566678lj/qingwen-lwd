@@ -28,8 +28,8 @@ pub fn export_pdf(
     document: &Document,
     _layout: &crate::model::PageLayout,
 ) -> Result<String, String> {
-    let font_path = find_cjk_font()?;
     let layout = document.layout.clone().normalized();
+    let font_path = find_cjk_font(&layout.font_family)?;
     let left = layout.margins.left * 10.0;
     let right = layout.margins.right * 10.0;
     let top = layout.margins.top * 10.0;
@@ -236,22 +236,6 @@ pub fn export_pdf(
     Ok(format!("PDF 已导出（{} 页）", pages.len()))
 }
 
-fn find_cjk_font() -> Result<PathBuf, String> {
-    let candidates = [
-        "C:\\Windows\\Fonts\\simhei.ttf",
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "/System/Library/Fonts/PingFang.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-    ];
-    for path in candidates {
-        if Path::new(path).is_file() {
-            return Ok(PathBuf::from(path));
-        }
-    }
-    Err("找不到可嵌入 PDF 的中文字体".to_string())
-}
-
 fn aligned_text_x(
     text: &str,
     font_size: f32,
@@ -317,6 +301,29 @@ fn decode_image(block: &Block) -> Option<PdfImage> {
         height: rgba.height(),
         rgb,
     })
+}
+
+fn find_cjk_font(family: &str) -> Result<PathBuf, String> {
+    let preferred = match family {
+        "黑体" => "C:\\Windows\\Fonts\\simhei.ttf",
+        "楷体" => "C:\\Windows\\Fonts\\simkai.ttf",
+        "仿宋" => "C:\\Windows\\Fonts\\simfang.ttf",
+        _ => "C:\\Windows\\Fonts\\simhei.ttf",
+    };
+    let candidates = [
+        preferred,
+        "C:\\Windows\\Fonts\\simhei.ttf",
+        "C:\\Windows\\Fonts\\msyh.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    ];
+    for path in candidates {
+        if Path::new(path).is_file() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+    Err("找不到可嵌入 PDF 的中文字体".to_string())
 }
 
 fn block_lines(block: &Block, width_mm: f32, font_size: f32) -> Vec<String> {

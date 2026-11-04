@@ -1334,6 +1334,75 @@ impl NativeApp {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
+            ui.menu_button("编辑", |ui| {
+                if ui.button("撤销    Ctrl+Z").clicked() {
+                    self.undo();
+                    ui.close_menu();
+                }
+                if ui.button("重做    Ctrl+Y").clicked() {
+                    self.redo();
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("查找    Ctrl+F").clicked() {
+                    self.find_open = true;
+                    self.refresh_find_matches();
+                    ui.close_menu();
+                }
+            });
+            ui.menu_button("格式", |ui| {
+                for (label, action) in [
+                    ("加粗", MarkAction::Bold),
+                    ("斜体", MarkAction::Italic),
+                    ("下划线", MarkAction::Underline),
+                    ("删除线", MarkAction::Strike),
+                    ("高亮", MarkAction::Highlight),
+                ] {
+                    if ui.button(label).clicked() {
+                        self.pending_format = Some(action);
+                        ui.close_menu();
+                    }
+                }
+                ui.separator();
+                for (label, align) in [
+                    ("左对齐", TextAlign::Left),
+                    ("居中", TextAlign::Center),
+                    ("右对齐", TextAlign::Right),
+                ] {
+                    if ui.button(label).clicked() {
+                        self.set_alignment(align);
+                        ui.close_menu();
+                    }
+                }
+            });
+            ui.menu_button("插入", |ui| {
+                if ui.button("图片…").clicked() {
+                    self.insert_image_dialog();
+                    ui.close_menu();
+                }
+                if ui.button("表格").clicked() {
+                    self.insert_table();
+                    ui.close_menu();
+                }
+                if ui.button("分页符").clicked() {
+                    self.insert_page_break();
+                    ui.close_menu();
+                }
+            });
+            ui.menu_button("视图", |ui| {
+                if ui.checkbox(&mut self.show_ruler, "显示标尺").changed() {
+                }
+                let mut sidebar = self.sidebar_visible;
+                if ui.checkbox(&mut sidebar, "显示文档树").changed() {
+                    self.sidebar_visible = sidebar;
+                }
+            });
+            ui.menu_button("帮助", |ui| {
+                if ui.button("关于轻文 Native").clicked() {
+                    self.about_open = true;
+                    ui.close_menu();
+                }
+            });
             ui.menu_button("设置", |ui| {
                 if ui.button("选择默认保存文件夹…").clicked() {
                     self.choose_default_dir();
@@ -1434,6 +1503,30 @@ impl NativeApp {
         match self.ribbon_tab {
             RibbonTab::Home => {
                 ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "字族", |ui| {
+                        let current = self
+                            .active_tab()
+                            .map(|tab| tab.document.layout.font_family.clone())
+                            .unwrap_or_default();
+                        egui::ComboBox::from_id_salt("native-font-family")
+                            .selected_text(if current.is_empty() {
+                                "默认".to_string()
+                            } else {
+                                current.clone()
+                            })
+                            .show_ui(ui, |ui| {
+                                for family in ["", "黑体", "楷体", "仿宋"] {
+                                    let label = if family.is_empty() {
+                                        "默认"
+                                    } else {
+                                        family
+                                    };
+                                    if ui.selectable_label(current == family, label).clicked() {
+                                        self.set_font_family(family);
+                                    }
+                                }
+                            });
+                    });
                     ribbon_group(ui, "字体", |ui| {
                         let enabled = self.selection.is_some_and(|(_, start, end)| start < end);
                         for (label, action) in [
@@ -1726,6 +1819,14 @@ impl NativeApp {
         layout.margins.right = right;
         tab.dirty = true;
         self.status = "已应用页边距预设".to_string();
+    }
+
+    fn set_font_family(&mut self, family: &str) {
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        tab.document.layout.font_family = family.to_string();
+        tab.dirty = true;
     }
 
     fn set_font_size(&mut self, size: f32) {
@@ -2870,7 +2971,32 @@ fn install_chinese_fonts(ctx: &egui::Context) {
             break;
         }
     }
+    for (name, path) in [
+        ("hei", "C:\\Windows\\Fonts\\simhei.ttf"),
+        ("kai", "C:\\Windows\\Fonts\\simkai.ttf"),
+        ("fang", "C:\\Windows\\Fonts\\simfang.ttf"),
+    ] {
+        if let Ok(data) = fs::read(path) {
+            fonts
+                .font_data
+                .insert(name.to_string(), FontData::from_owned(data).into());
+            fonts.families.insert(
+                FontFamily::Name(name.into()),
+                vec![name.to_string(), "cjk".to_string()],
+            );
+        }
+    }
     ctx.set_fonts(fonts);
+}
+
+fn font_id_for(layout: &PageLayout, size: f32) -> FontId {
+    let family = match layout.font_family.as_str() {
+        "黑体" => FontFamily::Name("hei".into()),
+        "楷体" => FontFamily::Name("kai".into()),
+        "仿宋" => FontFamily::Name("fang".into()),
+        _ => FontFamily::Proportional,
+    };
+    FontId::new(size, family)
 }
 
 fn configure_style(ctx: &egui::Context) {
@@ -2955,7 +3081,7 @@ fn estimate_block_height(
             fonts
                 .layout(
                     block.text.clone(),
-                    FontId::proportional(font_size),
+                    font_id_for(layout, font_size),
                     Color32::from_rgb(32, 38, 48),
                     wrap_width,
                 )
@@ -3073,7 +3199,7 @@ fn render_one_block(
                             font_id: if is_code {
                                 FontId::monospace(font_size)
                             } else {
-                                FontId::proportional(font_size)
+                                font_id_for(layout, font_size)
                             },
                             color,
                             background: if let Some((_, _, active_match)) = find_hit {
@@ -3110,7 +3236,7 @@ fn render_one_block(
                 let empty_block = block.text.is_empty();
                 let output = TextEdit::multiline(&mut block.text)
                     .id(egui::Id::new(("native-block", block_id)))
-                    .font(FontId::proportional(font_size))
+                    .font(font_id_for(layout, font_size))
                     .desired_width((content_width - 36.0).max(120.0))
                     .frame(false)
                     .hint_text(if empty_block { "开始写作…" } else { "" })
