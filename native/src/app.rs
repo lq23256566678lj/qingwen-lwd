@@ -1723,7 +1723,7 @@ impl NativeApp {
         let Some(block) = tab.document.blocks.iter_mut().find(|block| block.id == focus) else {
             return;
         };
-        if block.kind.is_editable() {
+        if block.kind.is_editable() || matches!(block.kind, BlockKind::Image) {
             block.align = align;
             tab.dirty = true;
         }
@@ -2359,7 +2359,7 @@ impl NativeApp {
                             ui.label(
                                 RichText::new(format!(
                                     "第 {} 页 / 共 {} 页",
-                                    page_index + 1,
+                                    layout.page_number_start as usize + page_index,
                                     page_count
                                 ))
                                 .small()
@@ -2578,6 +2578,10 @@ impl NativeApp {
                 ui.label("段后间距（cm）");
                 changed |= ui
                     .add(egui::Slider::new(&mut layout.paragraph_spacing, 0.0..=2.0))
+                    .changed();
+                ui.label("起始页码");
+                changed |= ui
+                    .add(egui::DragValue::new(&mut layout.page_number_start).range(1..=9999))
                     .changed();
                 if changed {
                     tab.document.layout = layout.clone().normalized();

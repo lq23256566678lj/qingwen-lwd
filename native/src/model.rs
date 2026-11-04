@@ -255,6 +255,12 @@ pub struct PageLayout {
     pub landscape: bool,
     #[serde(default)]
     pub paragraph_spacing: f32,
+    #[serde(default = "default_page_number_start")]
+    pub page_number_start: u32,
+}
+
+fn default_page_number_start() -> u32 {
+    1
 }
 
 impl Default for PageLayout {
@@ -272,6 +278,7 @@ impl Default for PageLayout {
             watermark: String::new(),
             landscape: false,
             paragraph_spacing: 0.0,
+            page_number_start: 1,
         }
     }
 }

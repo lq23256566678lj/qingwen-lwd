@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use printpdf::*;
 
-use crate::model::{Block, BlockKind, Document};
+use crate::model::{Block, BlockKind, Document, TextAlign};
 
 const A4_WIDTH_MM: f32 = 210.0;
 const A4_HEIGHT_MM: f32 = 297.0;
@@ -19,7 +19,7 @@ struct PdfImage {
 
 enum PdfItem {
     Line(String, f32),
-    Image(PdfImage, f32, f32),
+    Image(PdfImage, f32, f32, TextAlign),
 }
 
 pub fn export_pdf(
@@ -68,7 +68,7 @@ pub fn export_pdf(
                     pages.push(std::mem::take(&mut current));
                     y = usable_height;
                 }
-                current.push(PdfItem::Image(image, width, height));
+                current.push(PdfItem::Image(image, width, height, block.align));
                 y -= height + (layout.font_size * MM_PER_POINT * 0.45).max(1.0);
                 continue;
             }
@@ -146,7 +146,7 @@ pub fn export_pdf(
             layer.use_text(
                 layout
                     .header_text
-                    .replace("{page}", &(page_index + 1).to_string())
+                    .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
                     .replace("{pages}", &pages.len().to_string())
                     .as_str(),
                 9.0,
@@ -159,7 +159,7 @@ pub fn export_pdf(
             layer.use_text(
                 layout
                     .footer_text
-                    .replace("{page}", &(page_index + 1).to_string())
+                    .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
                     .replace("{pages}", &pages.len().to_string())
                     .as_str(),
                 9.0,
@@ -168,7 +168,11 @@ pub fn export_pdf(
                 &font,
             );
         }
-        let page_label = format!("第 {} / {} 页", page_index + 1, pages.len());
+        let page_label = format!(
+            "第 {} / {} 页",
+            layout.page_number_start as usize + page_index,
+            pages.len()
+        );
         layer.use_text(
             page_label.as_str(),
             9.0,
@@ -184,12 +188,17 @@ pub fn export_pdf(
                     y -= line_height;
                     layer.use_text(text.as_str(), *font_size, Mm(left), Mm(y), &font);
                 }
-                PdfItem::Image(image, width, height) => {
+                PdfItem::Image(image, width, height, align) => {
                     y -= *height;
                     let base_width = image.width as f32 / 300.0 * 25.4;
                     let scale = *width / base_width.max(1.0);
+                    let offset = match align {
+                        TextAlign::Center => ((content_width - *width) * 0.5).max(0.0),
+                        TextAlign::Right => (content_width - *width).max(0.0),
+                        TextAlign::Left => 0.0,
+                    };
                     let transform = ImageTransform {
-                        translate_x: Some(Mm(left)),
+                        translate_x: Some(Mm(left + offset)),
                         translate_y: Some(Mm(y)),
                         scale_x: Some(scale),
                         scale_y: Some(scale),
