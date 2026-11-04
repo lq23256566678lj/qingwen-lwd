@@ -213,6 +213,8 @@ pub struct PageLayout {
     pub header_text: String,
     #[serde(default)]
     pub footer_text: String,
+    #[serde(default)]
+    pub different_first_page: bool,
 }
 
 impl Default for PageLayout {
@@ -225,6 +227,7 @@ impl Default for PageLayout {
             font_size: 16.0,
             header_text: String::new(),
             footer_text: String::new(),
+            different_first_page: false,
         }
     }
 }

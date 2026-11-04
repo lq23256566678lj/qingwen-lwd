@@ -79,18 +79,26 @@ pub fn export_pdf(
             doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Text")
         };
         let layer = doc.get_page(page).get_layer(layer);
-        if !layout.header_text.is_empty() {
+        if !layout.header_text.is_empty() && !(layout.different_first_page && page_index == 0) {
             layer.use_text(
-                layout.header_text.as_str(),
+                layout
+                    .header_text
+                    .replace("{page}", &(page_index + 1).to_string())
+                    .replace("{pages}", &pages.len().to_string())
+                    .as_str(),
                 9.0,
                 Mm(left),
                 Mm(A4_HEIGHT_MM - (top * 0.45).max(4.0)),
                 &font,
             );
         }
-        if !layout.footer_text.is_empty() {
+        if !layout.footer_text.is_empty() && !(layout.different_first_page && page_index == 0) {
             layer.use_text(
-                layout.footer_text.as_str(),
+                layout
+                    .footer_text
+                    .replace("{page}", &(page_index + 1).to_string())
+                    .replace("{pages}", &pages.len().to_string())
+                    .as_str(),
                 9.0,
                 Mm(left),
                 Mm((bottom * 0.45).max(4.0)),

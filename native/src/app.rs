@@ -1990,7 +1990,7 @@ impl NativeApp {
                 }
                 continue;
             }
-            let height = estimate_block_height(block, &layout, content_width, &textures);
+            let height = estimate_block_height(ui, block, &layout, content_width, &textures);
             if !current.is_empty() && used + height > usable_height {
                 pages.push(std::mem::take(&mut current));
                 used = 0.0;
@@ -2035,14 +2035,16 @@ impl NativeApp {
                     ui.set_width(width);
                     ui.set_min_height(page_height);
                     draw_vertical_ruler(ui, page_height, top, bottom, scale);
-                    if layout.header_text.is_empty() {
+                    if layout.header_text.is_empty()
+                        || (layout.different_first_page && page_index == 0)
+                    {
                         ui.add_space(top);
                     } else {
                         ui.add_space((top * 0.25).max(4.0));
                         ui.horizontal(|ui| {
                             ui.add_space(left);
                             ui.label(
-                                RichText::new(&layout.header_text)
+                                RichText::new(expand_page_text(&layout.header_text, page_index + 1, page_count))
                                     .small()
                                     .color(Color32::from_gray(110)),
                             );
@@ -2092,7 +2094,7 @@ impl NativeApp {
                         ui.add_space(left);
                         if !layout.footer_text.is_empty() {
                             ui.label(
-                                RichText::new(&layout.footer_text)
+                                RichText::new(expand_page_text(&layout.footer_text, page_index + 1, page_count))
                                     .small()
                                     .color(Color32::from_gray(110)),
                             );
@@ -2302,8 +2304,11 @@ impl NativeApp {
                     .add(
                         TextEdit::singleline(&mut layout.footer_text)
                             .desired_width(360.0)
-                            .hint_text("页脚文字"),
+                            .hint_text("页脚文字，可用 {page} / {pages}"),
                     )
+                    .changed();
+                changed |= ui
+                    .checkbox(&mut layout.different_first_page, "首页不同")
                     .changed();
                 if changed {
                     tab.document.layout = layout.clone().normalized();
@@ -2568,6 +2573,7 @@ struct BlockRenderResult {
 }
 
 fn estimate_block_height(
+    ui: &Ui,
     block: &Block,
     layout: &PageLayout,
     content_width: f32,
@@ -2577,26 +2583,34 @@ fn estimate_block_height(
         BlockKind::Heading(level) => layout.font_size + (5.0 - level as f32).max(1.0) * 3.0,
         _ => layout.font_size,
     };
-    let line_height = font_size * 1.45 * layout.line_height.max(1.0) * 0.72;
-    let char_width = (font_size * 0.95).max(1.0);
-    let line_chars = (content_width / char_width).max(8.0);
-    let mut lines = 0.0_f32;
-    for line in block.text.split('\n') {
-        lines += (line.chars().count() as f32 / line_chars).ceil().max(1.0);
-    }
-    let mut height = lines * line_height + 30.0;
+    let wrap_width = (content_width - 36.0).max(120.0);
+    let text_height = ui
+        .fonts(|fonts| {
+            fonts
+                .layout(
+                    block.text.clone(),
+                    FontId::proportional(font_size),
+                    Color32::from_rgb(32, 38, 48),
+                    wrap_width,
+                )
+                .size()
+                .y
+        })
+        .max(font_size * 1.3);
+    let mut height = text_height + 34.0;
     match block.kind {
         BlockKind::Table => {
             let rows = block.table.as_ref().map(|table| table.rows.len()).unwrap_or(1);
-            height = rows as f32 * 31.0 + 32.0;
+            height = rows as f32 * 31.0 + 36.0;
         }
         BlockKind::Image => {
             if let Some(texture) = textures.get(&block.id) {
                 let natural = texture.size_vec2();
-                height = (content_width * natural.y / natural.x.max(1.0)).min(520.0) + 30.0;
+                height = (content_width * natural.y / natural.x.max(1.0)).min(520.0) + 34.0;
             }
         }
-        BlockKind::Raw(_) => height = 26.0,
+        BlockKind::PageBreak => height = 28.0,
+        BlockKind::Raw(_) => height = 30.0,
         _ => {}
     }
     (height + 6.0).max(36.0)
@@ -2799,6 +2813,11 @@ fn render_one_block(
         });
     });
     result
+}
+
+fn expand_page_text(text: &str, page: usize, pages: usize) -> String {
+    text.replace("{page}", &page.to_string())
+        .replace("{pages}", &pages.to_string())
 }
 
 fn ribbon_group(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
