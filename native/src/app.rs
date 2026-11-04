@@ -1997,6 +1997,51 @@ impl NativeApp {
         };
         let mut rebuilt = Vec::new();
         for block in tab.document.blocks.drain(..) {
+            if matches!(block.kind, BlockKind::Table) {
+                if let Some(table) = block.table.clone() {
+                    let per_page = (((usable_height - 70.0) / 31.0).floor() as usize).max(2);
+                    let body_per_page = if table.header {
+                        per_page.saturating_sub(1).max(1)
+                    } else {
+                        per_page
+                    };
+                    let body_rows = if table.header {
+                        table.rows.len().saturating_sub(1)
+                    } else {
+                        table.rows.len()
+                    };
+                    if body_rows > body_per_page && body_rows > 1 {
+                        let header_row = table.rows.first().cloned();
+                        let mut start = if table.header { 1 } else { 0 };
+                        let mut first = true;
+                        while start < table.rows.len() {
+                            let end = (start + body_per_page).min(table.rows.len());
+                            let mut rows = Vec::new();
+                            if !first && table.header {
+                                if let Some(header) = header_row.clone() {
+                                    rows.push(header);
+                                }
+                            }
+                            rows.extend(table.rows[start..end].iter().cloned());
+                            let mut chunk = block.clone();
+                            chunk.id = next_id;
+                            next_id += 1;
+                            chunk.table = Some(TableData {
+                                header: table.header,
+                                rows,
+                            });
+                            chunk.continuation = !first;
+                            chunk.chunked = true;
+                            rebuilt.push(chunk);
+                            first = false;
+                            start = end;
+                        }
+                        continue;
+                    }
+                }
+                rebuilt.push(block);
+                continue;
+            }
             if !block.kind.is_editable() {
                 rebuilt.push(block);
                 continue;

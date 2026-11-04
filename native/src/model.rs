@@ -645,6 +645,17 @@ pub fn merged_for_save(document: &Document) -> Document {
     for block in merged.blocks.drain(..) {
         if block.continuation {
             if let Some(previous) = blocks.last_mut() {
+                if matches!(block.kind, BlockKind::Table) {
+                    if let (Some(previous_table), Some(block_table)) =
+                        (previous.table.as_mut(), block.table.as_ref())
+                    {
+                        let skip = if block_table.header { 1 } else { 0 };
+                        previous_table
+                            .rows
+                            .extend(block_table.rows.iter().skip(skip).cloned());
+                        continue;
+                    }
+                }
                 let offset = previous.text.len();
                 previous.text.push_str(&block.text);
                 for mut mark in block.marks {

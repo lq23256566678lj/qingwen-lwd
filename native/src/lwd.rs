@@ -241,4 +241,38 @@ mod tests {
         assert_eq!(loaded.document.blocks[0].text, "前半段。后半段。");
         let _ = fs::remove_file(path);
     }
+
+    #[test]
+    fn table_chunks_merge_when_saved() {
+        let folder = std::env::temp_dir().join("qingwen-native-table-merge");
+        fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("table-merge.lwd");
+        let created = "2026-01-01T00:00:00Z".to_string();
+        let mut document = Document::blank(PageLayout::default());
+        let mut first = Block::new(1, BlockKind::Table, String::new());
+        first.table = Some(TableData {
+            header: true,
+            rows: vec![
+                vec![TableCell { text: "姓名".into() }, TableCell { text: "年龄".into() }],
+                vec![TableCell { text: "甲".into() }, TableCell { text: "1".into() }],
+            ],
+        });
+        let mut second = Block::new(2, BlockKind::Table, String::new());
+        second.continuation = true;
+        second.chunked = true;
+        second.table = Some(TableData {
+            header: true,
+            rows: vec![
+                vec![TableCell { text: "姓名".into() }, TableCell { text: "年龄".into() }],
+                vec![TableCell { text: "乙".into() }, TableCell { text: "2".into() }],
+            ],
+        });
+        document.blocks.push(first);
+        document.blocks.push(second);
+        save_lwd(&path, &document, "表格续页", &created).unwrap();
+        let loaded = read_lwd(&path).unwrap();
+        assert_eq!(loaded.document.blocks.len(), 1);
+        assert_eq!(loaded.document.blocks[0].table.as_ref().unwrap().rows.len(), 3);
+        let _ = fs::remove_file(path);
+    }
 }
