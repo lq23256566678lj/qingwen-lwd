@@ -171,6 +171,8 @@ pub struct NativeApp {
     ribbon_tab: RibbonTab,
     show_ruler: bool,
     sidebar_visible: bool,
+    page_count: usize,
+    scroll_to_page: Option<usize>,
 }
 
 impl NativeApp {
@@ -243,6 +245,8 @@ impl NativeApp {
             ribbon_tab: RibbonTab::Home,
             show_ruler: true,
             sidebar_visible: true,
+            page_count: 1,
+            scroll_to_page: None,
         };
         app.new_tab();
         for path in lwd_args {
@@ -1849,11 +1853,6 @@ impl NativeApp {
     }
 
     fn central_page(&mut self, ctx: &egui::Context) {
-        let layout = self
-            .active_tab()
-            .map(|tab| tab.document.layout.clone())
-            .unwrap_or_default();
-        let show_ruler = self.show_ruler;
         egui::CentralPanel::default().show(ctx, |ui| {
             ScrollArea::both()
                 .auto_shrink([false, false])
@@ -1861,81 +1860,31 @@ impl NativeApp {
                     ui.vertical_centered(|ui| {
                         let width = PAGE_WIDTH.min((ui.available_width() - 32.0).max(420.0));
                         let scale = width / 21.0;
-                        let left = (layout.margins.left * scale).min(width * 0.4);
-                        let right = (layout.margins.right * scale).min(width * 0.4);
-                        let top = (layout.margins.top * scale).min(width * 0.4);
-                        let bottom = (layout.margins.bottom * scale).min(width * 0.4);
-                        let content_width = (width - left - right).max(120.0);
-                        if show_ruler {
-                            draw_ruler(ui, width, left, right, scale);
-                            ui.add_space(4.0);
-                        }
-                        Frame::NONE
-                            .fill(Color32::WHITE)
-                            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(226, 232, 240)))
-                            .shadow(egui::epaint::Shadow {
-                                offset: [0, 8],
-                                blur: 24,
-                                spread: 0,
-                                color: Color32::from_black_alpha(18),
-                            })
-                            .show(ui, |ui| {
-                                ui.set_width(width);
-                                ui.set_min_height((width * 297.0 / 210.0).max(900.0));
-                                if layout.header_text.is_empty() {
-                                    ui.add_space(top);
-                                } else {
-                                    ui.add_space((top * 0.25).max(4.0));
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(left);
-                                        ui.label(
-                                            RichText::new(&layout.header_text)
-                                                .small()
-                                                .color(Color32::from_gray(110)),
-                                        );
-                                        ui.add_space(right);
-                                    });
-                                    ui.add_space((top * 0.25).max(4.0));
-                                }
-                                ui.horizontal(|ui| {
-                                    ui.add_space(left);
-                                    ui.vertical(|ui| {
-                                        ui.set_width(content_width);
-                                        self.editor_blocks(ui, content_width);
-                                    });
-                                    ui.add_space(right);
-                                });
-                                ui.add_space(8.0);
-                                ui.horizontal(|ui| {
-                                    ui.add_space(left);
-                                    if !layout.footer_text.is_empty() {
-                                        ui.label(
-                                            RichText::new(&layout.footer_text)
-                                                .small()
-                                                .color(Color32::from_gray(110)),
-                                        );
-                                    }
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(Align::Center),
-                                        |ui| {
-                                            ui.add_space(right);
-                                            ui.label(
-                                                RichText::new("第 1 页")
-                                                    .small()
-                                                    .color(Color32::from_gray(110)),
-                                            );
-                                        },
-                                    );
-                                });
-                                ui.add_space((bottom * 0.25).max(4.0));
-                            });
+                        self.editor_pages(ui, width, scale);
                     });
                 });
         });
     }
 
-    fn editor_blocks(&mut self, ui: &mut Ui, content_width: f32) {
+    fn editor_pages(&mut self, ui: &mut Ui, width: f32, scale: f32) {
         let active = self.active;
+        let Some(tab) = self.tabs.get(active) else {
+            return;
+        };
+        let layout = tab.document.layout.clone();
+        let left = (layout.margins.left * scale).min(width * 0.4);
+        let right = (layout.margins.right * scale).min(width * 0.4);
+        let top = (layout.margins.top * scale).min(width * 0.4);
+        let bottom = (layout.margins.bottom * scale).min(width * 0.4);
+        let content_width = (width - left - right).max(120.0);
+        let page_height = (width * 297.0 / 210.0).max(900.0);
+        let usable_height = (page_height - top - bottom - 18.0).max(120.0);
+        let show_ruler = self.show_ruler;
+        if show_ruler {
+            draw_ruler(ui, width, left, right, scale);
+            ui.add_space(4.0);
+        }
+
         self.ensure_images(ui.ctx());
         let textures: HashMap<u64, TextureHandle> = self
             .textures
@@ -1946,225 +1895,175 @@ impl NativeApp {
             .find_matches
             .iter()
             .enumerate()
-            .map(|(index, found)| (found.block_id, found.start, found.end, index == self.find_index))
+            .map(|(index, found)| {
+                (
+                    found.block_id,
+                    found.start,
+                    found.end,
+                    index == self.find_index,
+                )
+            })
             .collect();
         let find_active_block = self
             .find_matches
             .get(self.find_index)
             .map(|found| found.block_id);
         let scroll_pending = self.find_scroll_pending;
-        let mut scroll_rect = None;
-        let Some(tab) = self.tabs.get_mut(active) else {
-            return;
-        };
-        let layout = tab.document.layout.clone();
-        let frame_before = tab.document.clone();
-        let mut changed = false;
-        let mut next_selection = self.selection;
-        let mut next_focus = self.focus_block;
-        let mut insert_after = None;
-        let mut delete_block = None;
-        let mut last_id = None;
 
-        let block_count = tab.document.blocks.len();
-        for index in 0..block_count {
-            let block = &mut tab.document.blocks[index];
-            last_id = Some(block.id);
-            let old_text = block.text.clone();
-            let block_id = block.id;
-            let kind = block.kind.clone();
-            let font_size = if let BlockKind::Heading(level) = kind {
-                layout.font_size + (5.0 - level as f32).max(1.0) * 3.0
-            } else {
-                layout.font_size
-            };
-            let is_code = matches!(kind, BlockKind::Code);
-            let marks = block.marks.clone();
-            let editable = kind.is_editable();
-            let block_find: Vec<(usize, usize, bool)> = find_ranges
-                .iter()
-                .filter(|(id, _, _, _)| *id == block_id)
-                .map(|(_, start, end, active)| (*start, *end, *active))
-                .collect();
-
-            ui.horizontal(|ui| {
-                match kind {
-                    BlockKind::Bullet => {
-                        ui.label("•");
-                    }
-                    BlockKind::Ordered => {
-                        ui.label(format!("{}.", index + 1));
-                    }
-                    BlockKind::Quote => {
-                        ui.label(RichText::new("▍").color(Color32::from_rgb(90, 140, 220)));
-                    }
-                    _ => {}
-                }
-                ui.allocate_ui_with_layout(
-                    egui::vec2(content_width, 0.0),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                    ui.set_width(content_width);
-                    ui.set_max_width(content_width);
-                    if editable {
-                        let mut layouter = |ui: &Ui, text: &str, _wrap_width: f32| {
-                            let mut job = LayoutJob::default();
-                            job.wrap.max_width = (content_width - 36.0).max(120.0);
-                            let mut boundaries = vec![0, text.len()];
-                            for range in &marks {
-                                if range.start < range.end && range.end <= text.len() {
-                                    boundaries.push(range.start);
-                                    boundaries.push(range.end);
-                                }
-                            }
-                            for (start, end, _) in &block_find {
-                                if *start < *end && *end <= text.len() {
-                                    boundaries.push(*start);
-                                    boundaries.push(*end);
-                                }
-                            }
-                            boundaries.sort_unstable();
-                            boundaries.dedup();
-                            for window in boundaries.windows(2) {
-                                let start = window[0];
-                                let end = window[1];
-                                if start >= end {
-                                    continue;
-                                }
-                                let segment_marks = marks_at(&marks, start, end);
-                                let find_hit = block_find
-                                    .iter()
-                                    .find(|(find_start, find_end, _)| *find_start <= start && *find_end >= end);
-                                let color = if segment_marks.code {
-                                    Color32::from_rgb(170, 60, 40)
-                                } else {
-                                    Color32::from_rgb(32, 38, 48)
-                                };
-                                let mut format = egui::TextFormat {
-                                    font_id: if is_code {
-                                        FontId::monospace(font_size)
-                                    } else {
-                                        FontId::proportional(font_size)
-                                    },
-                                    color,
-                                    background: if let Some((_, _, active_match)) = find_hit {
-                                        if *active_match {
-                                            Color32::from_rgb(255, 196, 120)
-                                        } else {
-                                            Color32::from_rgb(255, 243, 170)
-                                        }
-                                    } else if segment_marks.highlight {
-                                        Color32::from_rgb(255, 240, 150)
-                                    } else {
-                                        Color32::TRANSPARENT
-                                    },
-                                    underline: if segment_marks.underline {
-                                        Stroke::new(1.0_f32, color)
-                                    } else {
-                                        Stroke::NONE
-                                    },
-                                    strikethrough: if segment_marks.strike {
-                                        Stroke::new(1.0_f32, color)
-                                    } else {
-                                        Stroke::NONE
-                                    },
-                                    ..Default::default()
-                                };
-                                format.italics = segment_marks.italic;
-                                job.append(&text[start..end], 0.0, format);
-                            }
-                            if job.sections.is_empty() {
-                                job.append("", 0.0, egui::TextFormat::default());
-                            }
-                            ui.fonts(|fonts| fonts.layout_job(job))
-                        };
-                        let empty_block = block.text.is_empty();
-                        let output = TextEdit::multiline(&mut block.text)
-                            .id(egui::Id::new(("native-block", block_id)))
-                            .font(FontId::proportional(font_size))
-                            .desired_width((content_width - 36.0).max(120.0))
-                            .frame(false)
-                            .hint_text(if empty_block { "开始写作…" } else { "" })
-                            .layouter(&mut layouter)
-                            .show(ui);
-                        if output.response.changed() {
-                            adjust_marks_after_edit(block, &old_text);
-                            changed = true;
-                        }
-                        if scroll_pending && find_active_block == Some(block_id) {
-                            scroll_rect = Some(output.response.rect);
-                        }
-                        if output.response.has_focus() {
-                            next_focus = Some(block_id);
-                            if let Some(range) = output.cursor_range {
-                                let a = byte_index(&block.text, range.primary.ccursor.index);
-                                let b = byte_index(&block.text, range.secondary.ccursor.index);
-                                next_selection = Some((block_id, a.min(b), a.max(b)));
-                            }
-                        }
-                    } else if matches!(kind, BlockKind::Table) {
-                        if let Some(table) = block.table.as_mut() {
-                            if render_editable_table(ui, block_id, table, content_width) {
-                                changed = true;
-                            }
-                        }
-                    } else if matches!(kind, BlockKind::Raw("horizontalRule")) {
-                        ui.separator();
-                    } else if matches!(kind, BlockKind::Image) {
-                        if let Some(texture) = textures.get(&block_id) {
-                            let natural = texture.size_vec2();
-                            let scale = (content_width / natural.x.max(1.0)).min(1.0);
-                            ui.add(
-                                egui::Image::new((texture.id(), natural * scale))
-                                    .maintain_aspect_ratio(true),
-                            );
-                        } else {
-                            ui.label(
-                                RichText::new("[图片无法解码；保存时仍会保留原始数据]")
-                                    .italics()
-                                    .color(Color32::GRAY),
-                            );
-                        }
-                    } else {
-                        ui.label(
-                            RichText::new(format!(
-                                "[{} 内容由 Tauri 版创建，原生版暂只读；保存时会原样保留]",
-                                kind.label()
-                            ))
-                            .italics()
-                            .color(Color32::GRAY),
-                        );
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.small_button("＋ 段落").on_hover_text("在下方插入段落").clicked() {
-                            insert_after = Some(block_id);
-                        }
-                        if ui.small_button("删除").on_hover_text("删除这个段落").clicked() {
-                            delete_block = Some(block_id);
-                        }
-                    });
-                });
-            });
-            ui.add_space(2.0);
-        }
-
-        self.selection = next_selection;
-        self.focus_block = next_focus;
-        if changed {
-            tab.push_undo(frame_before);
-            tab.dirty = true;
-        }
-        if let Some(rect) = scroll_rect {
-            ui.scroll_to_rect(rect, Some(egui::Align::Center));
-            self.find_scroll_pending = false;
-        }
-        let need_block = last_id.is_none();
-        if need_block {
+        if self.tabs[active].document.blocks.is_empty() {
             let id = self.new_block_id();
             self.tabs[active]
                 .document
                 .blocks
                 .push(Block::new(id, BlockKind::Paragraph, String::new()));
+        }
+
+        let mut pages: Vec<Vec<usize>> = Vec::new();
+        let mut current: Vec<usize> = Vec::new();
+        let mut used = 0.0_f32;
+        for (index, block) in self.tabs[active].document.blocks.iter().enumerate() {
+            let height = estimate_block_height(block, &layout, content_width, &textures);
+            if !current.is_empty() && used + height > usable_height {
+                pages.push(std::mem::take(&mut current));
+                used = 0.0;
+            }
+            current.push(index);
+            used += height;
+            if used > usable_height {
+                pages.push(std::mem::take(&mut current));
+                used = 0.0;
+            }
+        }
+        if !current.is_empty() {
+            pages.push(current);
+        }
+        if pages.is_empty() {
+            pages.push(Vec::new());
+        }
+        let page_count = pages.len();
+        self.page_count = page_count;
+
+        let frame_before = self.tabs[active].document.clone();
+        let mut tab = self.tabs.get_mut(active).expect("active tab");
+        let mut changed = false;
+        let mut next_selection = self.selection;
+        let mut next_focus = self.focus_block;
+        let mut insert_after = None;
+        let mut delete_block = None;
+        let mut scroll_rect = None;
+
+        let mut page_target_rect = None;
+        for (page_index, indices) in pages.iter().enumerate() {
+            let page_response = Frame::NONE
+                .fill(Color32::WHITE)
+                .stroke(Stroke::new(1.0_f32, Color32::from_rgb(226, 232, 240)))
+                .shadow(egui::epaint::Shadow {
+                    offset: [0, 8],
+                    blur: 24,
+                    spread: 0,
+                    color: Color32::from_black_alpha(18),
+                })
+                .show(ui, |ui| {
+                    ui.set_width(width);
+                    ui.set_min_height(page_height);
+                    if layout.header_text.is_empty() {
+                        ui.add_space(top);
+                    } else {
+                        ui.add_space((top * 0.25).max(4.0));
+                        ui.horizontal(|ui| {
+                            ui.add_space(left);
+                            ui.label(
+                                RichText::new(&layout.header_text)
+                                    .small()
+                                    .color(Color32::from_gray(110)),
+                            );
+                            ui.add_space(right);
+                        });
+                        ui.add_space((top * 0.25).max(4.0));
+                    }
+                    ui.horizontal(|ui| {
+                        ui.add_space(left);
+                        ui.vertical(|ui| {
+                            ui.set_width(content_width);
+                            for &block_index in indices {
+                                let block = &mut tab.document.blocks[block_index];
+                                let result = render_one_block(
+                                    ui,
+                                    block,
+                                    block_index,
+                                    content_width,
+                                    &layout,
+                                    &find_ranges,
+                                    &textures,
+                                    scroll_pending,
+                                    find_active_block,
+                                );
+                                changed |= result.changed;
+                                if result.focus.is_some() {
+                                    next_focus = result.focus;
+                                }
+                                if result.selection.is_some() {
+                                    next_selection = result.selection;
+                                }
+                                if result.insert_after.is_some() {
+                                    insert_after = result.insert_after;
+                                }
+                                if result.delete_block.is_some() {
+                                    delete_block = result.delete_block;
+                                }
+                                if result.scroll_rect.is_some() {
+                                    scroll_rect = result.scroll_rect;
+                                }
+                            }
+                        });
+                        ui.add_space(right);
+                    });
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(left);
+                        if !layout.footer_text.is_empty() {
+                            ui.label(
+                                RichText::new(&layout.footer_text)
+                                    .small()
+                                    .color(Color32::from_gray(110)),
+                            );
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                            ui.add_space(right);
+                            ui.label(
+                                RichText::new(format!(
+                                    "第 {} 页 / 共 {} 页",
+                                    page_index + 1,
+                                    page_count
+                                ))
+                                .small()
+                                .color(Color32::from_gray(110)),
+                            );
+                        });
+                    });
+                    ui.add_space((bottom * 0.25).max(4.0));
+                });
+            if self.scroll_to_page == Some(page_index) {
+                page_target_rect = Some(page_response.response.rect);
+            }
+            if page_index + 1 < pages.len() {
+                ui.add_space(22.0);
+            }
+        }
+
+        if let Some(rect) = page_target_rect {
+            ui.scroll_to_rect(rect, Some(egui::Align::TOP));
+            self.scroll_to_page = None;
+        }
+        if changed {
+            tab.push_undo(frame_before);
+            tab.dirty = true;
+        }
+        self.selection = next_selection;
+        self.focus_block = next_focus;
+        if let Some(rect) = scroll_rect {
+            ui.scroll_to_rect(rect, Some(egui::Align::Center));
+            self.find_scroll_pending = false;
         }
         if let Some(id) = insert_after {
             self.insert_block_after(id);
@@ -2177,9 +2076,20 @@ impl NativeApp {
     fn status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("native-status").show(ctx, |ui| {
             ui.horizontal(|ui| {
+                let page_count = self.page_count;
+                let current_page = self.scroll_to_page.unwrap_or(0);
+                let mut jump_page = None;
+                if ui.small_button("◀").clicked() {
+                    jump_page = Some(current_page.saturating_sub(1));
+                }
+                if ui.small_button("▶").clicked() {
+                    jump_page = Some((current_page + 1).min(page_count.saturating_sub(1)));
+                }
                 let tab = self.active_tab();
                 let words = tab.map(|tab| tab.document.word_count()).unwrap_or(0);
                 let chars = tab.map(|tab| tab.document.character_count()).unwrap_or(0);
+                ui.label(format!("第 {} 页 / 共 {} 页", current_page + 1, page_count));
+                ui.separator();
                 ui.label(format!("{words} 词 · {chars} 字符"));
                 ui.separator();
                 if let Some(path) = tab.and_then(|tab| tab.path.as_ref()) {
@@ -2196,6 +2106,9 @@ impl NativeApp {
                         }
                     }
                 });
+                if let Some(page) = jump_page {
+                    self.scroll_to_page = Some(page);
+                }
             });
         });
     }
@@ -2573,6 +2486,242 @@ fn queue_open_requests(paths: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct BlockRenderResult {
+    changed: bool,
+    focus: Option<u64>,
+    selection: Option<(u64, usize, usize)>,
+    insert_after: Option<u64>,
+    delete_block: Option<u64>,
+    scroll_rect: Option<egui::Rect>,
+}
+
+fn estimate_block_height(
+    block: &Block,
+    layout: &PageLayout,
+    content_width: f32,
+    textures: &HashMap<u64, TextureHandle>,
+) -> f32 {
+    let font_size = match block.kind {
+        BlockKind::Heading(level) => layout.font_size + (5.0 - level as f32).max(1.0) * 3.0,
+        _ => layout.font_size,
+    };
+    let line_height = font_size * 1.45 * layout.line_height.max(1.0) * 0.72;
+    let char_width = (font_size * 0.95).max(1.0);
+    let line_chars = (content_width / char_width).max(8.0);
+    let mut lines = 0.0_f32;
+    for line in block.text.split('\n') {
+        lines += (line.chars().count() as f32 / line_chars).ceil().max(1.0);
+    }
+    let mut height = lines * line_height + 30.0;
+    match block.kind {
+        BlockKind::Table => {
+            let rows = block.table.as_ref().map(|table| table.rows.len()).unwrap_or(1);
+            height = rows as f32 * 31.0 + 32.0;
+        }
+        BlockKind::Image => {
+            if let Some(texture) = textures.get(&block.id) {
+                let natural = texture.size_vec2();
+                height = (content_width * natural.y / natural.x.max(1.0)).min(520.0) + 30.0;
+            }
+        }
+        BlockKind::Raw(_) => height = 26.0,
+        _ => {}
+    }
+    (height + 6.0).max(36.0)
+}
+
+fn render_one_block(
+    ui: &mut Ui,
+    block: &mut Block,
+    index: usize,
+    content_width: f32,
+    layout: &PageLayout,
+    find_ranges: &[(u64, usize, usize, bool)],
+    textures: &HashMap<u64, TextureHandle>,
+    scroll_pending: bool,
+    find_active_block: Option<u64>,
+) -> BlockRenderResult {
+    let mut result = BlockRenderResult::default();
+
+    let old_text = block.text.clone();
+    let block_id = block.id;
+    let kind = block.kind.clone();
+    let font_size = if let BlockKind::Heading(level) = kind {
+        layout.font_size + (5.0 - level as f32).max(1.0) * 3.0
+    } else {
+        layout.font_size
+    };
+    let is_code = matches!(kind, BlockKind::Code);
+    let marks = block.marks.clone();
+    let editable = kind.is_editable();
+    let block_find: Vec<(usize, usize, bool)> = find_ranges
+        .iter()
+        .filter(|(id, _, _, _)| *id == block_id)
+        .map(|(_, start, end, active)| (*start, *end, *active))
+        .collect();
+
+    ui.horizontal(|ui| {
+        match kind {
+            BlockKind::Bullet => {
+                ui.label("•");
+            }
+            BlockKind::Ordered => {
+                ui.label(format!("{}.", index + 1));
+            }
+            BlockKind::Quote => {
+                ui.label(RichText::new("▍").color(Color32::from_rgb(90, 140, 220)));
+            }
+            _ => {}
+        }
+        ui.allocate_ui_with_layout(
+            egui::vec2(content_width, 0.0),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+            ui.set_width(content_width);
+            ui.set_max_width(content_width);
+            if editable {
+                let mut layouter = |ui: &Ui, text: &str, _wrap_width: f32| {
+                    let mut job = LayoutJob::default();
+                    job.wrap.max_width = (content_width - 36.0).max(120.0);
+                    let mut boundaries = vec![0, text.len()];
+                    for range in &marks {
+                        if range.start < range.end && range.end <= text.len() {
+                            boundaries.push(range.start);
+                            boundaries.push(range.end);
+                        }
+                    }
+                    for (start, end, _) in &block_find {
+                        if *start < *end && *end <= text.len() {
+                            boundaries.push(*start);
+                            boundaries.push(*end);
+                        }
+                    }
+                    boundaries.sort_unstable();
+                    boundaries.dedup();
+                    for window in boundaries.windows(2) {
+                        let start = window[0];
+                        let end = window[1];
+                        if start >= end {
+                            continue;
+                        }
+                        let segment_marks = marks_at(&marks, start, end);
+                        let find_hit = block_find
+                            .iter()
+                            .find(|(find_start, find_end, _)| *find_start <= start && *find_end >= end);
+                        let color = if segment_marks.code {
+                            Color32::from_rgb(170, 60, 40)
+                        } else {
+                            Color32::from_rgb(32, 38, 48)
+                        };
+                        let mut format = egui::TextFormat {
+                            font_id: if is_code {
+                                FontId::monospace(font_size)
+                            } else {
+                                FontId::proportional(font_size)
+                            },
+                            color,
+                            background: if let Some((_, _, active_match)) = find_hit {
+                                if *active_match {
+                                    Color32::from_rgb(255, 196, 120)
+                                } else {
+                                    Color32::from_rgb(255, 243, 170)
+                                }
+                            } else if segment_marks.highlight {
+                                Color32::from_rgb(255, 240, 150)
+                            } else {
+                                Color32::TRANSPARENT
+                            },
+                            underline: if segment_marks.underline {
+                                Stroke::new(1.0_f32, color)
+                            } else {
+                                Stroke::NONE
+                            },
+                            strikethrough: if segment_marks.strike {
+                                Stroke::new(1.0_f32, color)
+                            } else {
+                                Stroke::NONE
+                            },
+                            ..Default::default()
+                        };
+                        format.italics = segment_marks.italic;
+                        job.append(&text[start..end], 0.0, format);
+                    }
+                    if job.sections.is_empty() {
+                        job.append("", 0.0, egui::TextFormat::default());
+                    }
+                    ui.fonts(|fonts| fonts.layout_job(job))
+                };
+                let empty_block = block.text.is_empty();
+                let output = TextEdit::multiline(&mut block.text)
+                    .id(egui::Id::new(("native-block", block_id)))
+                    .font(FontId::proportional(font_size))
+                    .desired_width((content_width - 36.0).max(120.0))
+                    .frame(false)
+                    .hint_text(if empty_block { "开始写作…" } else { "" })
+                    .layouter(&mut layouter)
+                    .show(ui);
+                if output.response.changed() {
+                    adjust_marks_after_edit(block, &old_text);
+                    result.changed = true;
+                }
+                if scroll_pending && find_active_block == Some(block_id) {
+                    result.scroll_rect = Some(output.response.rect);
+                }
+                if output.response.has_focus() {
+                    result.focus = Some(block_id);
+                    if let Some(range) = output.cursor_range {
+                        let a = byte_index(&block.text, range.primary.ccursor.index);
+                        let b = byte_index(&block.text, range.secondary.ccursor.index);
+                        result.selection = Some((block_id, a.min(b), a.max(b)));
+                    }
+                }
+            } else if matches!(kind, BlockKind::Table) {
+                if let Some(table) = block.table.as_mut() {
+                    if render_editable_table(ui, block_id, table, content_width) {
+                        result.changed = true;
+                    }
+                }
+            } else if matches!(kind, BlockKind::Raw("horizontalRule")) {
+                ui.separator();
+            } else if matches!(kind, BlockKind::Image) {
+                if let Some(texture) = textures.get(&block_id) {
+                    let natural = texture.size_vec2();
+                    let scale = (content_width / natural.x.max(1.0)).min(1.0);
+                    ui.add(
+                        egui::Image::new((texture.id(), natural * scale))
+                            .maintain_aspect_ratio(true),
+                    );
+                } else {
+                    ui.label(
+                        RichText::new("[图片无法解码；保存时仍会保留原始数据]")
+                            .italics()
+                            .color(Color32::GRAY),
+                    );
+                }
+            } else {
+                ui.label(
+                    RichText::new(format!(
+                        "[{} 内容由 Tauri 版创建，原生版暂只读；保存时会原样保留]",
+                        kind.label()
+                    ))
+                    .italics()
+                    .color(Color32::GRAY),
+                );
+            }
+            ui.horizontal(|ui| {
+                if ui.small_button("＋ 段落").on_hover_text("在下方插入段落").clicked() {
+                    result.insert_after = Some(block_id);
+                }
+                if ui.small_button("删除").on_hover_text("删除这个段落").clicked() {
+                    result.delete_block = Some(block_id);
+                }
+            });
+        });
+    });
+    result
 }
 
 fn ribbon_group(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
