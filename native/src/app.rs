@@ -1983,18 +1983,48 @@ impl NativeApp {
         });
     }
 
-    fn split_long_blocks(&mut self, tab_index: usize) {
+    fn split_long_blocks(
+        &mut self,
+        tab_index: usize,
+        ui: &Ui,
+        layout: &PageLayout,
+        content_width: f32,
+        usable_height: f32,
+    ) {
         let mut next_id = self.next_block_id;
         let Some(tab) = self.tabs.get_mut(tab_index) else {
             return;
         };
         let mut rebuilt = Vec::new();
         for block in tab.document.blocks.drain(..) {
-            if !block.kind.is_editable() || block.text.chars().count() <= 650 {
+            if !block.kind.is_editable() {
                 rebuilt.push(block);
                 continue;
             }
-            let ranges = split_char_ranges(&block.text, 500);
+            let font_size = match block.kind {
+                BlockKind::Heading(level) => {
+                    layout.font_size + (5.0 - level as f32).max(1.0) * 3.0
+                }
+                _ => layout.font_size,
+            };
+            let text_height = measure_text_height(ui, &block.text, font_size, content_width);
+            if text_height <= usable_height * 0.95 {
+                rebuilt.push(block);
+                continue;
+            }
+            let target_height = (usable_height - 45.0).max(120.0);
+            let target_chars = max_chars_for_height(
+                ui,
+                &block.text,
+                font_size,
+                content_width,
+                target_height,
+            );
+            if target_chars >= block.text.chars().count() {
+                rebuilt.push(block);
+                continue;
+            }
+            let ranges = split_char_ranges(&block.text, target_chars);
             for (index, (start, end)) in ranges.into_iter().enumerate() {
                 let mut chunk = block.clone();
                 chunk.id = next_id;
@@ -2012,12 +2042,12 @@ impl NativeApp {
 
     fn editor_pages(&mut self, ui: &mut Ui, width: f32, scale: f32) {
         let active = self.active;
-        self.split_long_blocks(active);
-        let Some(tab) = self.tabs.get(active) else {
-            return;
-        };
-        let mut layout = tab.document.layout.clone();
         let zoom = self.zoom;
+        let mut layout = self
+            .tabs
+            .get(active)
+            .map(|tab| tab.document.layout.clone())
+            .unwrap_or_default();
         layout.font_size *= zoom;
         let left = (layout.margins.left * scale).min(width * 0.4);
         let right = (layout.margins.right * scale).min(width * 0.4);
@@ -2026,6 +2056,10 @@ impl NativeApp {
         let content_width = (width - left - right).max(120.0);
         let page_height = (width * 297.0 / 210.0).max(900.0);
         let usable_height = (page_height - top - bottom - 18.0).max(120.0);
+        self.split_long_blocks(active, ui, &layout, content_width, usable_height);
+        let Some(tab) = self.tabs.get(active) else {
+            return;
+        };
         let show_ruler = self.show_ruler;
         if show_ruler {
             draw_ruler(ui, width, left, right, scale);
@@ -2932,6 +2966,55 @@ fn render_one_block(
         });
     });
     result
+}
+
+fn measure_text_height(ui: &Ui, text: &str, font_size: f32, content_width: f32) -> f32 {
+    if text.is_empty() {
+        return font_size * 1.3;
+    }
+    ui.fonts(|fonts| {
+        fonts
+            .layout(
+                text.to_string(),
+                FontId::proportional(font_size),
+                Color32::from_rgb(32, 38, 48),
+                (content_width - 36.0).max(120.0),
+            )
+            .size()
+            .y
+    })
+}
+
+fn max_chars_for_height(
+    ui: &Ui,
+    text: &str,
+    font_size: f32,
+    content_width: f32,
+    max_height: f32,
+) -> usize {
+    let total = text.chars().count();
+    if total == 0 {
+        return 0;
+    }
+    let mut low = 40_usize;
+    let mut high = total;
+    let mut best = 40.min(total);
+    while low <= high {
+        let middle = (low + high) / 2;
+        let byte = text
+            .char_indices()
+            .nth(middle)
+            .map(|(offset, _)| offset)
+            .unwrap_or(text.len());
+        let height = measure_text_height(ui, &text[..byte], font_size, content_width);
+        if height <= max_height {
+            best = middle;
+            low = middle + 1;
+        } else {
+            high = middle.saturating_sub(1);
+        }
+    }
+    best.max(80).min(total)
 }
 
 fn split_char_ranges(text: &str, target_chars: usize) -> Vec<(usize, usize)> {
