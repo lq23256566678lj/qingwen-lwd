@@ -1570,6 +1570,17 @@ impl NativeApp {
                         }
                         ui.label("A4 · 21 × 29.7 cm");
                     });
+                    ribbon_group(ui, "页边距", |ui| {
+                        if ui.button("普通").clicked() {
+                            self.apply_margin_preset(2.54, 2.54, 2.54, 2.54);
+                        }
+                        if ui.button("窄").clicked() {
+                            self.apply_margin_preset(1.27, 1.27, 1.27, 1.27);
+                        }
+                        if ui.button("宽").clicked() {
+                            self.apply_margin_preset(2.54, 2.54, 5.08, 5.08);
+                        }
+                    });
                     ribbon_group(ui, "段落", |ui| {
                         if ui.button("首行缩进 +1").clicked() {
                             self.adjust_first_line_indent(1);
@@ -1702,6 +1713,19 @@ impl NativeApp {
                 }
             }
         }
+    }
+
+    fn apply_margin_preset(&mut self, top: f32, bottom: f32, left: f32, right: f32) {
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        let layout = &mut tab.document.layout;
+        layout.margins.top = top;
+        layout.margins.bottom = bottom;
+        layout.margins.left = left;
+        layout.margins.right = right;
+        tab.dirty = true;
+        self.status = "已应用页边距预设".to_string();
     }
 
     fn set_font_size(&mut self, size: f32) {

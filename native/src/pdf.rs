@@ -143,27 +143,29 @@ pub fn export_pdf(
             layer.set_outline_color(Color::Greyscale(Greyscale::new(0.0, None)));
         }
         if !layout.header_text.is_empty() && !(layout.different_first_page && page_index == 0) {
+            let header_text = layout
+                .header_text
+                .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
+                .replace("{pages}", &pages.len().to_string());
+            let header_x = aligned_text_x(&header_text, 9.0, left, content_width, layout.header_align);
             layer.use_text(
-                layout
-                    .header_text
-                    .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
-                    .replace("{pages}", &pages.len().to_string())
-                    .as_str(),
+                header_text.as_str(),
                 9.0,
-                Mm(left),
+                Mm(header_x),
                 Mm(page_height - (top * 0.45).max(4.0)),
                 &font,
             );
         }
         if !layout.footer_text.is_empty() && !(layout.different_first_page && page_index == 0) {
+            let footer_text = layout
+                .footer_text
+                .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
+                .replace("{pages}", &pages.len().to_string());
+            let footer_x = aligned_text_x(&footer_text, 9.0, left, content_width, layout.footer_align);
             layer.use_text(
-                layout
-                    .footer_text
-                    .replace("{page}", &(layout.page_number_start as usize + page_index).to_string())
-                    .replace("{pages}", &pages.len().to_string())
-                    .as_str(),
+                footer_text.as_str(),
                 9.0,
-                Mm(left),
+                Mm(footer_x),
                 Mm((bottom * 0.45).max(4.0)),
                 &font,
             );
@@ -248,6 +250,31 @@ fn find_cjk_font() -> Result<PathBuf, String> {
         }
     }
     Err("找不到可嵌入 PDF 的中文字体".to_string())
+}
+
+fn aligned_text_x(
+    text: &str,
+    font_size: f32,
+    left: f32,
+    content_width: f32,
+    align: TextAlign,
+) -> f32 {
+    let width = text
+        .chars()
+        .map(|character| {
+            if character.is_ascii() {
+                font_size * 0.52
+            } else {
+                font_size
+            }
+        })
+        .sum::<f32>()
+        * MM_PER_POINT;
+    match align {
+        TextAlign::Left => left,
+        TextAlign::Center => left + ((content_width - width) * 0.5).max(0.0),
+        TextAlign::Right => left + (content_width - width).max(0.0),
+    }
 }
 
 fn image_width_percent(block: &Block) -> f32 {
