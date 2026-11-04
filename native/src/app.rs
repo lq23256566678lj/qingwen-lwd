@@ -108,6 +108,23 @@ struct CloudResult {
     result: Result<(), String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RibbonTab {
+    Home,
+    Insert,
+    Layout,
+    Table,
+    View,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum TableAction {
+    AddRow,
+    AddColumn,
+    RemoveRow,
+    RemoveColumn,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct FindMatch {
     block_id: u64,
@@ -151,6 +168,9 @@ pub struct NativeApp {
     cloud_hashes: HashMap<u64, u64>,
     last_cloud_check: Instant,
     cloud_status: String,
+    ribbon_tab: RibbonTab,
+    show_ruler: bool,
+    sidebar_visible: bool,
 }
 
 impl NativeApp {
@@ -220,6 +240,9 @@ impl NativeApp {
             cloud_hashes: HashMap::new(),
             last_cloud_check: Instant::now(),
             cloud_status,
+            ribbon_tab: RibbonTab::Home,
+            show_ruler: true,
+            sidebar_visible: true,
         };
         app.new_tab();
         for path in lwd_args {
@@ -1267,6 +1290,417 @@ impl NativeApp {
         }
     }
 
+    fn ribbon(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.menu_button("文件", |ui| {
+                if ui.button("新建标签页    Ctrl+N").clicked() {
+                    self.new_tab();
+                    ui.close_menu();
+                }
+                if ui.button("打开…    Ctrl+O").clicked() {
+                    self.open_dialog();
+                    ui.close_menu();
+                }
+                if ui.button("保存    Ctrl+S").clicked() {
+                    self.save_dialog(false);
+                    ui.close_menu();
+                }
+                if ui.button("另存为…    Ctrl+Shift+S").clicked() {
+                    self.save_dialog(true);
+                    ui.close_menu();
+                }
+                if ui.button("导出 PDF…").clicked() {
+                    self.export_pdf_dialog();
+                    ui.close_menu();
+                }
+                if ui.button("打印…").clicked() {
+                    self.print_active();
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("退出").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            });
+            ui.menu_button("设置", |ui| {
+                if ui.button("选择默认保存文件夹…").clicked() {
+                    self.choose_default_dir();
+                    ui.close_menu();
+                }
+                if ui.button("关闭默认保存文件夹").clicked() {
+                    self.settings.default_save_dir = None;
+                    self.save_settings();
+                    ui.close_menu();
+                }
+                ui.separator();
+                ui.label("自动保存间隔");
+                for seconds in [0_u64, 30, 60, 120, 300] {
+                    let label = if seconds == 0 {
+                        "关闭".to_string()
+                    } else {
+                        format!("{seconds} 秒")
+                    };
+                    if ui
+                        .selectable_label(self.settings.autosave_seconds == seconds, label)
+                        .clicked()
+                    {
+                        self.settings.autosave_seconds = seconds;
+                        self.save_settings();
+                    }
+                }
+                if ui.button("关于轻文 Native").clicked() {
+                    self.about_open = true;
+                    ui.close_menu();
+                }
+            });
+            ui.menu_button("云端", |ui| {
+                if ui.button("WebDAV 设置…").clicked() {
+                    self.open_webdav_settings();
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("上传当前文档").clicked() {
+                    self.webdav_upload();
+                    ui.close_menu();
+                }
+                if ui.button("从 WebDAV 下载").clicked() {
+                    self.webdav_download();
+                    ui.close_menu();
+                }
+            });
+            let title = self
+                .active_tab()
+                .map(|tab| tab.title.as_str())
+                .unwrap_or("未命名文档");
+            ui.label(RichText::new(title).strong());
+            if self.active_tab().is_some_and(|tab| tab.dirty) {
+                ui.label(RichText::new("● 未保存").color(Color32::from_rgb(200, 120, 20)));
+            }
+            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                if ui.button("保存").clicked() {
+                    self.save_dialog(false);
+                }
+                if ui
+                    .add_enabled(
+                        self.active_tab().is_some_and(|tab| !tab.redo.is_empty()),
+                        egui::Button::new("重做"),
+                    )
+                    .clicked()
+                {
+                    self.redo();
+                }
+                if ui
+                    .add_enabled(
+                        self.active_tab().is_some_and(|tab| !tab.undo.is_empty()),
+                        egui::Button::new("撤销"),
+                    )
+                    .clicked()
+                {
+                    self.undo();
+                }
+            });
+        });
+        ui.separator();
+        ui.horizontal(|ui| {
+            for (tab, label) in [
+                (RibbonTab::Home, "开始"),
+                (RibbonTab::Insert, "插入"),
+                (RibbonTab::Layout, "布局"),
+                (RibbonTab::Table, "表格"),
+                (RibbonTab::View, "视图"),
+            ] {
+                if ui
+                    .selectable_label(self.ribbon_tab == tab, RichText::new(label).strong())
+                    .clicked()
+                {
+                    self.ribbon_tab = tab;
+                }
+            }
+        });
+        ui.separator();
+
+        match self.ribbon_tab {
+            RibbonTab::Home => {
+                ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "字体", |ui| {
+                        let enabled = self.selection.is_some_and(|(_, start, end)| start < end);
+                        for (label, action) in [
+                            ("B", MarkAction::Bold),
+                            ("I", MarkAction::Italic),
+                            ("U", MarkAction::Underline),
+                            ("S", MarkAction::Strike),
+                            ("</>", MarkAction::Code),
+                            ("高亮", MarkAction::Highlight),
+                            ("清除格式", MarkAction::Clear),
+                        ] {
+                            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                                self.pending_format = Some(action);
+                            }
+                        }
+                    });
+                    ribbon_group(ui, "段落", |ui| {
+                        self.block_kind_combo(ui);
+                        if ui.button("• 列表").clicked() {
+                            self.change_block_kind(BlockKind::Bullet);
+                        }
+                        if ui.button("1. 编号").clicked() {
+                            self.change_block_kind(BlockKind::Ordered);
+                        }
+                        if ui.button("引用").clicked() {
+                            self.change_block_kind(BlockKind::Quote);
+                        }
+                        if ui.button("代码").clicked() {
+                            self.change_block_kind(BlockKind::Code);
+                        }
+                    });
+                    ribbon_group(ui, "编辑", |ui| {
+                        if ui.button("查找").clicked() {
+                            self.find_open = true;
+                            self.refresh_find_matches();
+                        }
+                        if ui.button("＋ 段落").clicked() {
+                            let id = self.focus_block.or_else(|| {
+                                self.active_tab().and_then(|tab| {
+                                    tab.document.blocks.last().map(|block| block.id)
+                                })
+                            });
+                            if let Some(id) = id {
+                                self.insert_block_after(id);
+                            }
+                        }
+                    });
+                });
+            }
+            RibbonTab::Insert => {
+                ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "插入", |ui| {
+                        if ui.button("图片").clicked() {
+                            self.insert_image_dialog();
+                        }
+                        if ui.button("表格").clicked() {
+                            self.insert_table();
+                        }
+                    });
+                    ribbon_group(ui, "页面", |ui| {
+                        if ui.button("分页符").clicked() {
+                            self.status = "分页符将在后续版本加入".to_string();
+                        }
+                        if ui.button("页眉页脚").clicked() {
+                            self.status = "页眉页脚将在后续版本加入".to_string();
+                        }
+                    });
+                    ribbon_group(ui, "输出", |ui| {
+                        if ui.button("PDF").clicked() {
+                            self.export_pdf_dialog();
+                        }
+                        if ui.button("打印").clicked() {
+                            self.print_active();
+                        }
+                    });
+                });
+            }
+            RibbonTab::Layout => {
+                ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "页面", |ui| {
+                        if ui.button("页面设置").clicked() {
+                            self.page_setup_open = true;
+                        }
+                        ui.label("A4 · 21 × 29.7 cm");
+                    });
+                    ribbon_group(ui, "段落", |ui| {
+                        if ui.button("首行缩进 +1").clicked() {
+                            self.adjust_first_line_indent(1);
+                        }
+                        if ui.button("首行缩进 -1").clicked() {
+                            self.adjust_first_line_indent(-1);
+                        }
+                    });
+                });
+            }
+            RibbonTab::Table => {
+                ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "行列", |ui| {
+                        if ui.button("＋ 行").clicked() {
+                            self.table_action(TableAction::AddRow);
+                        }
+                        if ui.button("＋ 列").clicked() {
+                            self.table_action(TableAction::AddColumn);
+                        }
+                        if ui.button("－ 行").clicked() {
+                            self.table_action(TableAction::RemoveRow);
+                        }
+                        if ui.button("－ 列").clicked() {
+                            self.table_action(TableAction::RemoveColumn);
+                        }
+                    });
+                    ribbon_group(ui, "插入", |ui| {
+                        if ui.button("3×3 表格").clicked() {
+                            self.insert_table();
+                        }
+                    });
+                    ui.label("选中表格后使用；单元格文字可直接编辑");
+                });
+            }
+            RibbonTab::View => {
+                ui.horizontal_wrapped(|ui| {
+                    ribbon_group(ui, "显示", |ui| {
+                        if ui.checkbox(&mut self.show_ruler, "显示标尺").changed() {
+                            // 下一帧按新状态绘制
+                        }
+                        let mut sidebar = self.sidebar_open();
+                        if ui.checkbox(&mut sidebar, "显示文档树").changed() {
+                            self.set_sidebar_open(sidebar);
+                        }
+                    });
+                    ribbon_group(ui, "窗口", |ui| {
+                        ui.label("页面视图");
+                        ui.label("缩放 100%");
+                    });
+                });
+            }
+        }
+
+        if self.find_open {
+            self.find_bar(ui);
+        }
+    }
+
+    fn block_kind_combo(&mut self, ui: &mut Ui) {
+        let current = self
+            .focus_block
+            .and_then(|id| {
+                self.active_tab()
+                    .and_then(|tab| tab.document.blocks.iter().find(|block| block.id == id))
+            })
+            .map(|block| block.kind.label())
+            .unwrap_or("段落");
+        egui::ComboBox::from_id_salt("ribbon-block-kind")
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                for (label, kind) in [
+                    ("正文", BlockKind::Paragraph),
+                    ("标题 1", BlockKind::Heading(1)),
+                    ("标题 2", BlockKind::Heading(2)),
+                    ("标题 3", BlockKind::Heading(3)),
+                    ("项目符号", BlockKind::Bullet),
+                    ("编号列表", BlockKind::Ordered),
+                    ("引用", BlockKind::Quote),
+                    ("代码块", BlockKind::Code),
+                ] {
+                    if ui.selectable_label(current == label, label).clicked() {
+                        self.change_block_kind(kind);
+                    }
+                }
+            });
+    }
+
+    fn adjust_first_line_indent(&mut self, delta: i32) {
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        let next = (tab.document.layout.first_line_indent as i32 + delta * 1).clamp(0, 4) as u32;
+        if next != tab.document.layout.first_line_indent {
+            tab.document.layout.first_line_indent = next;
+            tab.dirty = true;
+        }
+    }
+
+    fn table_action(&mut self, action: TableAction) {
+        let focus = self.focus_block;
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        let snapshot = tab.document.clone();
+        let Some(block) = tab.document.blocks.iter_mut().find(|block| {
+            matches!(block.kind, BlockKind::Table)
+                && focus.map(|id| id == block.id).unwrap_or(true)
+        }) else {
+            self.status = "请先选中一个表格".to_string();
+            return;
+        };
+        let Some(table) = block.table.as_mut() else {
+            return;
+        };
+        match action {
+            TableAction::AddRow => {
+                let count = table.rows.iter().map(Vec::len).max().unwrap_or(1).max(1);
+                table.rows.push(vec![TableCell::default(); count]);
+            }
+            TableAction::AddColumn => {
+                for row in &mut table.rows {
+                    row.push(TableCell::default());
+                }
+            }
+            TableAction::RemoveRow => {
+                if table.rows.len() > 1 {
+                    table.rows.pop();
+                }
+            }
+            TableAction::RemoveColumn => {
+                if table.rows.iter().all(|row| row.len() > 1) {
+                    for row in &mut table.rows {
+                        row.pop();
+                    }
+                }
+            }
+        }
+        tab.push_undo(snapshot);
+        tab.dirty = true;
+    }
+
+    fn sidebar_open(&self) -> bool {
+        self.sidebar_visible
+    }
+
+    fn set_sidebar_open(&mut self, open: bool) {
+        self.sidebar_visible = open;
+    }
+
+    fn find_bar(&mut self, ui: &mut Ui) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("查找");
+            let changed = ui
+                .add(
+                    TextEdit::singleline(&mut self.find_query)
+                        .desired_width(170.0)
+                        .hint_text("查找内容"),
+                )
+                .changed();
+            if changed {
+                self.find_index = 0;
+                self.refresh_find_matches();
+            }
+            let count = self.find_matches.len();
+            ui.label(format!(
+                "{}/{}",
+                if count == 0 { 0 } else { self.find_index + 1 },
+                count
+            ));
+            if ui.button("上一个").clicked() {
+                self.find_step(false);
+            }
+            if ui.button("下一个").clicked() {
+                self.find_step(true);
+            }
+            ui.separator();
+            ui.label("替换为");
+            ui.add(
+                TextEdit::singleline(&mut self.replace_query)
+                    .desired_width(170.0)
+                    .hint_text("替换内容"),
+            );
+            if ui.button("替换").clicked() {
+                self.replace_current();
+            }
+            if ui.button("全部替换").clicked() {
+                self.replace_all();
+            }
+            if ui.button("关闭").clicked() {
+                self.find_open = false;
+            }
+        });
+    }
+
     fn menu(&mut self, ui: &mut Ui) {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("文件", |ui| {
@@ -1419,6 +1853,7 @@ impl NativeApp {
             .active_tab()
             .map(|tab| tab.document.layout.clone())
             .unwrap_or_default();
+        let show_ruler = self.show_ruler;
         egui::CentralPanel::default().show(ctx, |ui| {
             ScrollArea::both()
                 .auto_shrink([false, false])
@@ -1431,6 +1866,10 @@ impl NativeApp {
                         let top = (layout.margins.top * scale).min(width * 0.4);
                         let bottom = (layout.margins.bottom * scale).min(width * 0.4);
                         let content_width = (width - left - right).max(120.0);
+                        if show_ruler {
+                            draw_ruler(ui, width, left, right, scale);
+                            ui.add_space(4.0);
+                        }
                         Frame::NONE
                             .fill(Color32::WHITE)
                             .stroke(Stroke::new(1.0_f32, Color32::from_rgb(226, 232, 240)))
@@ -1998,11 +2437,11 @@ impl eframe::App for NativeApp {
         self.cloud_tick();
 
         egui::TopBottomPanel::top("native-top").show(ctx, |ui| {
-            self.menu(ui);
-            ui.separator();
-            self.toolbar(ui);
+            self.ribbon(ui);
         });
-        self.side_panel(ctx);
+        if self.sidebar_visible {
+            self.side_panel(ctx);
+        }
         self.status_bar(ctx);
         self.central_page(ctx);
         self.page_setup_window(ctx);
@@ -2082,6 +2521,62 @@ fn queue_open_requests(paths: &[String]) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn ribbon_group(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| add(ui));
+        ui.label(RichText::new(label).small().color(Color32::GRAY));
+    });
+    ui.separator();
+}
+
+fn draw_ruler(ui: &mut Ui, page_width: f32, left: f32, right: f32, scale: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(page_width, 18.0), egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, 3.0, Color32::from_rgb(246, 248, 252));
+    painter.rect_stroke(
+        rect,
+        3.0,
+        Stroke::new(1.0_f32, Color32::from_rgb(218, 226, 240)),
+        egui::StrokeKind::Inside,
+    );
+    painter.rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(rect.left(), rect.top()),
+            egui::pos2(rect.left() + left, rect.bottom()),
+        ),
+        0.0,
+        Color32::from_rgb(232, 237, 247),
+    );
+    painter.rect_filled(
+        egui::Rect::from_min_max(
+            egui::pos2(rect.right() - right, rect.top()),
+            egui::pos2(rect.right(), rect.bottom()),
+        ),
+        0.0,
+        Color32::from_rgb(232, 237, 247),
+    );
+    for cm in 0..=21 {
+        let x = rect.left() + cm as f32 * scale;
+        let major = cm % 5 == 0;
+        painter.line_segment(
+            [
+                egui::pos2(x, rect.bottom() - if major { 9.0 } else { 5.0 }),
+                egui::pos2(x, rect.bottom()),
+            ],
+            Stroke::new(1.0_f32, Color32::from_rgb(145, 158, 178)),
+        );
+        if major {
+            painter.text(
+                egui::pos2(x + 2.0, rect.top() + 1.0),
+                egui::Align2::LEFT_TOP,
+                cm.to_string(),
+                FontId::proportional(9.0),
+                Color32::from_rgb(120, 132, 150),
+            );
+        }
+    }
 }
 
 fn sanitize_stem(value: &str) -> String {
