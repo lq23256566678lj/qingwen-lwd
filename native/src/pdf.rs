@@ -56,7 +56,8 @@ pub fn export_pdf(
         }
         if matches!(block.kind, BlockKind::Image) {
             if let Some(image) = decode_image(block) {
-                let mut width = content_width;
+                let percent = image_width_percent(block) / 100.0;
+                let mut width = content_width * percent;
                 let mut height = width * image.height as f32 / image.width.max(1) as f32;
                 if height > usable_height * 0.9 {
                     let scale = usable_height * 0.9 / height;
@@ -238,6 +239,18 @@ fn find_cjk_font() -> Result<PathBuf, String> {
         }
     }
     Err("找不到可嵌入 PDF 的中文字体".to_string())
+}
+
+fn image_width_percent(block: &Block) -> f32 {
+    block
+        .raw
+        .as_ref()
+        .and_then(|raw| raw.get("attrs"))
+        .and_then(|attrs| attrs.get("widthPercent"))
+        .and_then(serde_json::Value::as_f64)
+        .map(|value| value as f32)
+        .unwrap_or(100.0)
+        .clamp(20.0, 100.0)
 }
 
 fn decode_image(block: &Block) -> Option<PdfImage> {

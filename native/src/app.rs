@@ -1534,6 +1534,16 @@ impl NativeApp {
                             self.insert_table();
                         }
                     });
+                    ribbon_group(ui, "图片宽度", |ui| {
+                        let percent = self.focused_image_width();
+                        let mut value = percent;
+                        if ui
+                            .add(egui::Slider::new(&mut value, 20.0..=100.0).suffix("%"))
+                            .changed()
+                        {
+                            self.set_image_width(value);
+                        }
+                    });
                     ribbon_group(ui, "页面", |ui| {
                         if ui.button("分页符").clicked() {
                             self.insert_page_break();
@@ -1664,6 +1674,33 @@ impl NativeApp {
         if next != tab.document.layout.first_line_indent {
             tab.document.layout.first_line_indent = next;
             tab.dirty = true;
+        }
+    }
+
+    fn focused_image_width(&self) -> f32 {
+        let Some(focus) = self.focus_block else {
+            return 100.0;
+        };
+        self.active_tab()
+            .and_then(|tab| tab.document.blocks.iter().find(|block| block.id == focus))
+            .map(image_width_percent)
+            .unwrap_or(100.0)
+    }
+
+    fn set_image_width(&mut self, percent: f32) {
+        let Some(focus) = self.focus_block else {
+            return;
+        };
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        if let Some(block) = tab.document.blocks.iter_mut().find(|block| block.id == focus) {
+            if block.kind == BlockKind::Image {
+                if let Some(raw) = block.raw.as_mut() {
+                    raw["attrs"]["widthPercent"] = serde_json::json!(percent.clamp(20.0, 100.0));
+                    tab.dirty = true;
+                }
+            }
         }
     }
 
@@ -2804,6 +2841,18 @@ struct BlockRenderResult {
     scroll_rect: Option<egui::Rect>,
 }
 
+fn image_width_percent(block: &Block) -> f32 {
+    block
+        .raw
+        .as_ref()
+        .and_then(|raw| raw.get("attrs"))
+        .and_then(|attrs| attrs.get("widthPercent"))
+        .and_then(serde_json::Value::as_f64)
+        .map(|value| value as f32)
+        .unwrap_or(100.0)
+        .clamp(20.0, 100.0)
+}
+
 fn estimate_block_height(
     ui: &Ui,
     block: &Block,
@@ -2839,7 +2888,8 @@ fn estimate_block_height(
         BlockKind::Image => {
             if let Some(texture) = textures.get(&block.id) {
                 let natural = texture.size_vec2();
-                let width_scale = (content_width / natural.x.max(1.0)).min(1.0);
+                let image_width = content_width * image_width_percent(block) / 100.0;
+                let width_scale = (image_width / natural.x.max(1.0)).min(1.0);
                 let height_scale = (max_image_height / (natural.y * width_scale).max(1.0)).min(1.0);
                 height = natural.y * width_scale * height_scale + 34.0;
             }
