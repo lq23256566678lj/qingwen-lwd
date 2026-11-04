@@ -44,9 +44,85 @@ jobs:
       - name: Build native app
         run: cargo build --release --manifest-path native/Cargo.toml
 
-      - name: Upload native binary
+      - name: Package Windows binary
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist-native | Out-Null
+          Copy-Item native/target/release/qingwen-native.exe dist-native/Qingwen-LWD-Native.exe
+
+      - name: Package macOS app
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-native "Qingwen LWD Native.app/Contents/MacOS"
+          cp native/target/release/qingwen-native "Qingwen LWD Native.app/Contents/MacOS/qingwen-native"
+          chmod +x "Qingwen LWD Native.app/Contents/MacOS/qingwen-native"
+          cat > "Qingwen LWD Native.app/Contents/Info.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>qingwen-native</string>
+            <key>CFBundleIdentifier</key><string>com.qingwen.lwd.native</string>
+            <key>CFBundleName</key><string>Qingwen LWD Native</string>
+            <key>CFBundleDisplayName</key><string>轻文 LWD Native</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.8.0</string>
+            <key>CFBundleVersion</key><string>0.8.0</string>
+            <key>LSMinimumSystemVersion</key><string>10.15</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>CFBundleDocumentTypes</key>
+            <array>
+              <dict>
+                <key>CFBundleTypeExtensions</key><array><string>lwd</string></array>
+                <key>CFBundleTypeName</key><string>Qingwen LWD Document</string>
+                <key>CFBundleTypeRole</key><string>Editor</string>
+              </dict>
+            </array>
+          </dict>
+          </plist>
+          EOF
+          ditto -c -k --keepParent "Qingwen LWD Native.app" dist-native/qingwen-native-macos.zip
+
+      - name: Package Linux deb and tarball
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-native
+          tar -czf dist-native/qingwen-native-linux-x64.tar.gz -C native/target/release qingwen-native
+          PKG=deb-root
+          mkdir -p "$PKG/DEBIAN" "$PKG/usr/bin" "$PKG/usr/share/applications" "$PKG/usr/share/icons/hicolor/128x128/apps"
+          cp native/target/release/qingwen-native "$PKG/usr/bin/qingwen-native"
+          cp qingwen/src-tauri/icons/128x128.png "$PKG/usr/share/icons/hicolor/128x128/apps/qingwen-native.png"
+          cat > "$PKG/usr/share/applications/qingwen-native.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Qingwen LWD Native
+          Comment=Lightweight native .lwd editor
+          Exec=qingwen-native %f
+          Icon=qingwen-native
+          Terminal=false
+          Categories=Office;WordProcessor;
+          MimeType=application/x-lwd;
+          EOF
+          cat > "$PKG/DEBIAN/control" <<'EOF'
+          Package: qingwen-native
+          Version: 0.8.0
+          Section: editors
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Qingwen
+          Description: Qingwen LWD Native
+           Pure Rust egui editor for .lwd documents.
+          EOF
+          dpkg-deb --build "$PKG" dist-native/qingwen-native_0.8.0_amd64.deb
+
+      - name: Upload native packages
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.binary }}
+          path: dist-native/*
           if-no-files-found: error
