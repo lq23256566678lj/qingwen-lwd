@@ -146,6 +146,8 @@ pub struct Block {
     pub raw: Option<Value>,
     pub table: Option<TableData>,
     pub align: TextAlign,
+    pub continuation: bool,
+    pub chunked: bool,
 }
 
 impl Block {
@@ -158,6 +160,8 @@ impl Block {
             raw: None,
             table: None,
             align: TextAlign::Left,
+            continuation: false,
+            chunked: false,
         }
     }
 
@@ -351,6 +355,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: None,
                 table: None,
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         "bulletList" | "orderedList" => {
@@ -386,6 +392,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: None,
                 table: None,
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         "pageBreak" => {
@@ -397,6 +405,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: Some(node.clone()),
                 table: None,
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         "image" => {
@@ -408,6 +418,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: Some(node.clone()),
                 table: None,
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         "table" => {
@@ -419,6 +431,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: Some(node.clone()),
                 table: Some(parse_table(node)),
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         "horizontalRule" => {
@@ -430,6 +444,8 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 raw: Some(node.clone()),
                 table: None,
                 align,
+                continuation: false,
+                chunked: false,
             });
         }
         _ => {
@@ -621,6 +637,28 @@ pub fn document_to_json(document: &Document) -> Value {
         content.push(json!({ "type": "paragraph" }));
     }
     json!({ "type": "doc", "content": content })
+}
+
+pub fn merged_for_save(document: &Document) -> Document {
+    let mut merged = document.clone();
+    let mut blocks: Vec<Block> = Vec::new();
+    for block in merged.blocks.drain(..) {
+        if block.continuation {
+            if let Some(previous) = blocks.last_mut() {
+                let offset = previous.text.len();
+                previous.text.push_str(&block.text);
+                for mut mark in block.marks {
+                    mark.start += offset;
+                    mark.end += offset;
+                    previous.marks.push(mark);
+                }
+                continue;
+            }
+        }
+        blocks.push(block);
+    }
+    merged.blocks = blocks;
+    merged
 }
 
 fn block_to_json(block: &Block) -> Option<Value> {

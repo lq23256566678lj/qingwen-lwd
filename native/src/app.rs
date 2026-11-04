@@ -812,6 +812,8 @@ impl NativeApp {
             raw: Some(raw),
             table: None,
             align: TextAlign::Left,
+            continuation: false,
+            chunked: false,
         };
         let new_id = self.new_block_id();
         let focus = self.focus_block;
@@ -1091,6 +1093,8 @@ impl NativeApp {
             raw: None,
             table: Some(table),
             align: TextAlign::Left,
+            continuation: false,
+            chunked: false,
         };
         let new_id = self.new_block_id();
         let focus = self.focus_block;
@@ -1713,6 +1717,8 @@ impl NativeApp {
                 raw: Some(serde_json::json!({ "type": "pageBreak" })),
                 table: None,
                 align: TextAlign::Left,
+                continuation: false,
+                chunked: false,
             },
         );
         tab.dirty = true;
@@ -1977,8 +1983,36 @@ impl NativeApp {
         });
     }
 
+    fn split_long_blocks(&mut self, tab_index: usize) {
+        let mut next_id = self.next_block_id;
+        let Some(tab) = self.tabs.get_mut(tab_index) else {
+            return;
+        };
+        let mut rebuilt = Vec::new();
+        for block in tab.document.blocks.drain(..) {
+            if !block.kind.is_editable() || block.text.chars().count() <= 650 {
+                rebuilt.push(block);
+                continue;
+            }
+            let ranges = split_char_ranges(&block.text, 500);
+            for (index, (start, end)) in ranges.into_iter().enumerate() {
+                let mut chunk = block.clone();
+                chunk.id = next_id;
+                next_id += 1;
+                chunk.text = block.text[start..end].to_string();
+                chunk.marks = slice_marks(&block.marks, start, end);
+                chunk.continuation = index > 0;
+                chunk.chunked = true;
+                rebuilt.push(chunk);
+            }
+        }
+        tab.document.blocks = rebuilt;
+        self.next_block_id = next_id;
+    }
+
     fn editor_pages(&mut self, ui: &mut Ui, width: f32, scale: f32) {
         let active = self.active;
+        self.split_long_blocks(active);
         let Some(tab) = self.tabs.get(active) else {
             return;
         };
@@ -2885,17 +2919,75 @@ fn render_one_block(
                     .color(Color32::GRAY),
                 );
             }
-            ui.horizontal(|ui| {
-                if ui.small_button("＋ 段落").on_hover_text("在下方插入段落").clicked() {
-                    result.insert_after = Some(block_id);
-                }
-                if ui.small_button("删除").on_hover_text("删除这个段落").clicked() {
-                    result.delete_block = Some(block_id);
-                }
-            });
+            if !block.chunked {
+                ui.horizontal(|ui| {
+                    if ui.small_button("＋ 段落").on_hover_text("在下方插入段落").clicked() {
+                        result.insert_after = Some(block_id);
+                    }
+                    if ui.small_button("删除").on_hover_text("删除这个段落").clicked() {
+                        result.delete_block = Some(block_id);
+                    }
+                });
+            }
         });
     });
     result
+}
+
+fn split_char_ranges(text: &str, target_chars: usize) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    while start < text.len() {
+        let mut end = start;
+        let mut count = 0;
+        for (offset, character) in text[start..].char_indices() {
+            if count >= target_chars {
+                break;
+            }
+            end = start + offset + character.len_utf8();
+            count += 1;
+        }
+        if end >= text.len() {
+            ranges.push((start, text.len()));
+            break;
+        }
+        let search = &text[start..end];
+        if let Some(relative) = search
+            .char_indices()
+            .rev()
+            .find(|(_, character)| matches!(character, '。' | '！' | '？' | '\n' | '.' | '!' | '?'))
+            .map(|(index, character)| index + character.len_utf8())
+        {
+            end = start + relative;
+        }
+        if end <= start {
+            end = start + target_chars.min(text.len() - start);
+            while end < text.len() && !text.is_char_boundary(end) {
+                end += 1;
+            }
+        }
+        ranges.push((start, end));
+        start = end;
+    }
+    if ranges.is_empty() {
+        ranges.push((0, text.len()));
+    }
+    ranges
+}
+
+fn slice_marks(marks: &[crate::model::MarkRange], start: usize, end: usize) -> Vec<crate::model::MarkRange> {
+    let mut sliced = Vec::new();
+    for mark in marks {
+        let mark_start = mark.start.max(start);
+        let mark_end = mark.end.min(end);
+        if mark_start < mark_end {
+            let mut copy = mark.clone();
+            copy.start = mark_start - start;
+            copy.end = mark_end - start;
+            sliced.push(copy);
+        }
+    }
+    sliced
 }
 
 fn expand_page_text(text: &str, page: usize, pages: usize) -> String {

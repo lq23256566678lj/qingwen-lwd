@@ -77,7 +77,7 @@ fn parse_lwd(raw: &str, fallback_title: &str) -> Result<LoadedLwd, String> {
 pub fn content_hash(document: &Document, title: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     title.hash(&mut hasher);
-    document_to_json(document).to_string().hash(&mut hasher);
+    document_to_json(&document).to_string().hash(&mut hasher);
     serde_json::to_string(&document.layout)
         .unwrap_or_default()
         .hash(&mut hasher);
@@ -90,6 +90,7 @@ pub fn serialize_lwd(
     created_at: &str,
 ) -> Result<(Vec<u8>, String), String> {
     let updated_at = now_iso();
+    let document = crate::model::merged_for_save(document);
     let layout = serde_json::to_value(&document.layout)
         .map_err(|error| format!("序列化版式失败：{error}"))?;
     let meta = json!({
@@ -105,7 +106,7 @@ pub fn serialize_lwd(
         "createdAt": created_at,
         "updatedAt": updated_at,
         "meta": meta,
-        "document": document_to_json(document),
+        "document": document_to_json(&document),
     });
     let bytes = serde_json::to_vec_pretty(&envelope)
         .map_err(|error| format!("序列化文档失败：{error}"))?;
@@ -201,6 +202,8 @@ mod tests {
             text: String::new(),
             marks: Vec::new(),
             raw: None,
+            continuation: false,
+            chunked: false,
             table: Some(TableData {
                 header: true,
                 rows: vec![
@@ -217,5 +220,25 @@ mod tests {
         assert!(table.header);
         assert_eq!(table.rows[1][0].text, "轻文");
         let _ = fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn continuation_chunks_merge_when_saved() {
+        let folder = std::env::temp_dir().join("qingwen-native-continuation");
+        fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("continuation.lwd");
+        let created = "2026-01-01T00:00:00Z".to_string();
+        let mut document = Document::blank(PageLayout::default());
+        document
+            .blocks
+            .push(Block::new(1, BlockKind::Paragraph, "前半段。".into()));
+        let mut continuation = Block::new(2, BlockKind::Paragraph, "后半段。".into());
+        continuation.continuation = true;
+        document.blocks.push(continuation);
+        save_lwd(&path, &document, "续段测试", &created).unwrap();
+        let loaded = read_lwd(&path).unwrap();
+        assert_eq!(loaded.document.blocks.len(), 1);
+        assert_eq!(loaded.document.blocks[0].text, "前半段。后半段。");
+        let _ = fs::remove_file(path);
     }
 }
