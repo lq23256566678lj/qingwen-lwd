@@ -1461,6 +1461,20 @@ impl NativeApp {
                             self.change_block_kind(BlockKind::Code);
                         }
                     });
+                    ribbon_group(ui, "字号", |ui| {
+                        let current = self
+                            .active_tab()
+                            .map(|tab| tab.document.layout.font_size)
+                            .unwrap_or(16.0);
+                        for size in [12.0_f32, 14.0, 16.0, 18.0, 22.0, 26.0] {
+                            if ui
+                                .selectable_label((current - size).abs() < 0.5, size.to_string())
+                                .clicked()
+                            {
+                                self.set_font_size(size);
+                            }
+                        }
+                    });
                     ribbon_group(ui, "样式", |ui| {
                         for (label, kind, size) in [
                             ("正文", BlockKind::Paragraph, 14.0),
@@ -1647,6 +1661,14 @@ impl NativeApp {
             tab.document.layout.first_line_indent = next;
             tab.dirty = true;
         }
+    }
+
+    fn set_font_size(&mut self, size: f32) {
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        tab.document.layout.font_size = size.clamp(8.0, 32.0);
+        tab.dirty = true;
     }
 
     fn set_alignment(&mut self, align: TextAlign) {
@@ -2065,6 +2087,27 @@ impl NativeApp {
                 .show(ui, |ui| {
                     ui.set_width(width);
                     ui.set_min_height(page_height);
+                    let page_rect = egui::Rect::from_min_size(
+                        ui.min_rect().left_top(),
+                        egui::vec2(width, page_height),
+                    );
+                    if !layout.watermark.is_empty() {
+                        ui.painter().text(
+                            page_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            &layout.watermark,
+                            FontId::proportional(64.0),
+                            Color32::from_rgba_unmultiplied(110, 120, 135, 28),
+                        );
+                    }
+                    if layout.page_border {
+                        ui.painter().rect_stroke(
+                            page_rect.shrink(12.0),
+                            0.0,
+                            Stroke::new(1.2_f32, Color32::from_rgb(150, 160, 175)),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
                     draw_vertical_ruler(ui, page_height, top, bottom, scale);
                     if layout.header_text.is_empty()
                         || (layout.different_first_page && page_index == 0)
@@ -2341,6 +2384,15 @@ impl NativeApp {
                 changed |= ui
                     .checkbox(&mut layout.different_first_page, "首页不同")
                     .changed();
+                ui.label("水印");
+                changed |= ui
+                    .add(
+                        TextEdit::singleline(&mut layout.watermark)
+                            .desired_width(360.0)
+                            .hint_text("页面水印文字"),
+                    )
+                    .changed();
+                changed |= ui.checkbox(&mut layout.page_border, "页面边框").changed();
                 if changed {
                     tab.document.layout = layout.clone().normalized();
                     tab.dirty = true;

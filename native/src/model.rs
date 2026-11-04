@@ -243,6 +243,10 @@ pub struct PageLayout {
     pub footer_text: String,
     #[serde(default)]
     pub different_first_page: bool,
+    #[serde(default)]
+    pub page_border: bool,
+    #[serde(default)]
+    pub watermark: String,
 }
 
 impl Default for PageLayout {
@@ -256,6 +260,8 @@ impl Default for PageLayout {
             header_text: String::new(),
             footer_text: String::new(),
             different_first_page: false,
+            page_border: false,
+            watermark: String::new(),
         }
     }
 }
