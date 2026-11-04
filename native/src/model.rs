@@ -111,7 +111,7 @@ pub struct TableData {
     pub rows: Vec<Vec<TableCell>>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum TextAlign {
     #[default]
     Left,
@@ -257,6 +257,10 @@ pub struct PageLayout {
     pub paragraph_spacing: f32,
     #[serde(default = "default_page_number_start")]
     pub page_number_start: u32,
+    #[serde(default)]
+    pub header_align: TextAlign,
+    #[serde(default)]
+    pub footer_align: TextAlign,
 }
 
 fn default_page_number_start() -> u32 {
@@ -279,6 +283,8 @@ impl Default for PageLayout {
             landscape: false,
             paragraph_spacing: 0.0,
             page_number_start: 1,
+            header_align: TextAlign::Left,
+            footer_align: TextAlign::Left,
         }
     }
 }

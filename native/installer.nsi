@@ -3,7 +3,7 @@ Unicode true
 !include "LogicLib.nsh"
 
 !define APP_NAME "Qingwen LWD Native"
-!define APP_VERSION "0.10.5"
+!define APP_VERSION "0.10.6"
 !define APP_EXE "Qingwen-LWD-Native.exe"
 !define APP_PROGID "Qingwen.LWD.Native.Document"
 !define APP_REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\QingwenLWDNative"
@@ -14,7 +14,7 @@ InstallDir "$LOCALAPPDATA\Programs\Qingwen LWD Native"
 InstallDirRegKey HKCU "Software\Qingwen\LWDNative" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-VIProductVersion "0.10.5.0"
+VIProductVersion "0.10.6.0"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "FileDescription" "Qingwen LWD Native"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"

@@ -1,6 +1,6 @@
 [package]
 name = "qingwen-native"
-version = "0.10.5"
+version = "0.10.6"
 edition = "2021"
 description = "轻文 LWD 的纯 Rust 原生版本（egui，不使用 WebView）"
 license = "MIT"

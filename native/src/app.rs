@@ -2294,10 +2294,24 @@ impl NativeApp {
                         ui.add_space((top * 0.25).max(4.0));
                         ui.horizontal(|ui| {
                             ui.add_space(left);
-                            ui.label(
-                                RichText::new(expand_page_text(&layout.header_text, page_index + 1, page_count))
-                                    .small()
-                                    .color(Color32::from_gray(110)),
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(content_width, 18.0),
+                                egui::Layout::top_down(match layout.header_align {
+                                    TextAlign::Left => egui::Align::LEFT,
+                                    TextAlign::Center => egui::Align::Center,
+                                    TextAlign::Right => egui::Align::RIGHT,
+                                }),
+                                |ui| {
+                                    ui.label(
+                                        RichText::new(expand_page_text(
+                                            &layout.header_text,
+                                            layout.page_number_start as usize + page_index,
+                                            page_count,
+                                        ))
+                                        .small()
+                                        .color(Color32::from_gray(110)),
+                                    );
+                                },
                             );
                             ui.add_space(right);
                         });
@@ -2347,11 +2361,27 @@ impl NativeApp {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.add_space(left);
-                        if !layout.footer_text.is_empty() {
-                            ui.label(
-                                RichText::new(expand_page_text(&layout.footer_text, page_index + 1, page_count))
-                                    .small()
-                                    .color(Color32::from_gray(110)),
+                        if !layout.footer_text.is_empty()
+                            && !(layout.different_first_page && page_index == 0)
+                        {
+                            ui.allocate_ui_with_layout(
+                                egui::vec2(content_width * 0.6, 18.0),
+                                egui::Layout::top_down(match layout.footer_align {
+                                    TextAlign::Left => egui::Align::LEFT,
+                                    TextAlign::Center => egui::Align::Center,
+                                    TextAlign::Right => egui::Align::RIGHT,
+                                }),
+                                |ui| {
+                                    ui.label(
+                                        RichText::new(expand_page_text(
+                                            &layout.footer_text,
+                                            layout.page_number_start as usize + page_index,
+                                            page_count,
+                                        ))
+                                        .small()
+                                        .color(Color32::from_gray(110)),
+                                    );
+                                },
                             );
                         }
                         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
@@ -2583,6 +2613,32 @@ impl NativeApp {
                 changed |= ui
                     .add(egui::DragValue::new(&mut layout.page_number_start).range(1..=9999))
                     .changed();
+                ui.horizontal(|ui| {
+                    ui.label("页眉对齐");
+                    for (label, value) in [
+                        ("左", TextAlign::Left),
+                        ("中", TextAlign::Center),
+                        ("右", TextAlign::Right),
+                    ] {
+                        if ui.selectable_label(layout.header_align == value, label).clicked() {
+                            layout.header_align = value;
+                            changed = true;
+                        }
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("页脚对齐");
+                    for (label, value) in [
+                        ("左", TextAlign::Left),
+                        ("中", TextAlign::Center),
+                        ("右", TextAlign::Right),
+                    ] {
+                        if ui.selectable_label(layout.footer_align == value, label).clicked() {
+                            layout.footer_align = value;
+                            changed = true;
+                        }
+                    }
+                });
                 if changed {
                     tab.document.layout = layout.clone().normalized();
                     tab.dirty = true;
