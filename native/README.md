@@ -57,3 +57,13 @@ target/release/qingwen-native.exe
 - `src/config.rs`：默认保存目录和自动保存间隔
 
 编辑器的每个段落是独立的 `TextEdit`，标记以字符范围保存，通过自定义 `LayoutJob` 绘制富文本；保存时转换成 ProseMirror JSON。
+
+## 跨平台构建
+
+仓库内的 `.github/workflows/native-build.yml` 在 Windows / macOS / Ubuntu 上分别执行：
+
+```bash
+cargo build --release --manifest-path native/Cargo.toml
+```
+
+推送 `native-v*` tag 会触发三平台构建并上传可执行文件 artifact。macOS/Linux 目前产出裸二进制，不是 `.app`/`.deb` 安装包。
