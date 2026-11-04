@@ -85,6 +85,32 @@ pub fn export_pdf(
             doc.add_page(Mm(page_width), Mm(page_height), "Text")
         };
         let layer = doc.get_page(page).get_layer(layer);
+        if !layout.watermark.is_empty() {
+            layer.set_fill_color(Color::Greyscale(Greyscale::new(0.86, None)));
+            layer.use_text(
+                layout.watermark.as_str(),
+                48.0,
+                Mm((page_width * 0.18).max(10.0)),
+                Mm(page_height * 0.46),
+                &font,
+            );
+            layer.set_fill_color(Color::Greyscale(Greyscale::new(0.0, None)));
+        }
+        if layout.page_border {
+            let border = Line {
+                points: vec![
+                    (Point::new(Mm(10.0), Mm(10.0)), false),
+                    (Point::new(Mm(page_width - 10.0), Mm(10.0)), false),
+                    (Point::new(Mm(page_width - 10.0), Mm(page_height - 10.0)), false),
+                    (Point::new(Mm(10.0), Mm(page_height - 10.0)), false),
+                    (Point::new(Mm(10.0), Mm(10.0)), false),
+                ],
+                is_closed: true,
+            };
+            layer.set_outline_color(Color::Greyscale(Greyscale::new(0.55, None)));
+            layer.add_line(border);
+            layer.set_outline_color(Color::Greyscale(Greyscale::new(0.0, None)));
+        }
         if !layout.header_text.is_empty() && !(layout.different_first_page && page_index == 0) {
             layer.use_text(
                 layout
@@ -225,6 +251,9 @@ mod tests {
             std::process::id()
         ));
         let mut document = Document::blank(Default::default());
+        document.layout.landscape = true;
+        document.layout.page_border = true;
+        document.layout.watermark = "测试水印".to_string();
         document.blocks.push(Block::new(
             1,
             BlockKind::Paragraph,

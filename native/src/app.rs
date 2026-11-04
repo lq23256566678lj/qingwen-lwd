@@ -2176,8 +2176,14 @@ impl NativeApp {
                 }
                 continue;
             }
-            let height = estimate_block_height(ui, block, &layout, content_width, &textures)
-                + layout.paragraph_spacing * scale;
+            let height = estimate_block_height(
+                ui,
+                block,
+                &layout,
+                content_width,
+                &textures,
+                usable_height * 0.92,
+            ) + layout.paragraph_spacing * scale;
             if !current.is_empty() && used + height > usable_height {
                 pages.push(std::mem::take(&mut current));
                 used = 0.0;
@@ -2276,6 +2282,7 @@ impl NativeApp {
                                     &textures,
                                     scroll_pending,
                                     find_active_block,
+                                    usable_height * 0.92,
                                 );
                                 changed |= result.changed;
                                 if result.focus.is_some() {
@@ -2803,6 +2810,7 @@ fn estimate_block_height(
     layout: &PageLayout,
     content_width: f32,
     textures: &HashMap<u64, TextureHandle>,
+    max_image_height: f32,
 ) -> f32 {
     let font_size = match block.kind {
         BlockKind::Heading(level) => layout.font_size + (5.0 - level as f32).max(1.0) * 3.0,
@@ -2831,7 +2839,9 @@ fn estimate_block_height(
         BlockKind::Image => {
             if let Some(texture) = textures.get(&block.id) {
                 let natural = texture.size_vec2();
-                height = (content_width * natural.y / natural.x.max(1.0)).min(520.0) + 34.0;
+                let width_scale = (content_width / natural.x.max(1.0)).min(1.0);
+                let height_scale = (max_image_height / (natural.y * width_scale).max(1.0)).min(1.0);
+                height = natural.y * width_scale * height_scale + 34.0;
             }
         }
         BlockKind::PageBreak => height = 28.0,
@@ -2851,6 +2861,7 @@ fn render_one_block(
     textures: &HashMap<u64, TextureHandle>,
     scroll_pending: bool,
     find_active_block: Option<u64>,
+    max_image_height: f32,
 ) -> BlockRenderResult {
     let mut result = BlockRenderResult::default();
 
