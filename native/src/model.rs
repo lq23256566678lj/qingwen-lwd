@@ -111,6 +111,32 @@ pub struct TableData {
     pub rows: Vec<Vec<TableCell>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TextAlign {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
+
+impl TextAlign {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Center => "center",
+            Self::Right => "right",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "center" => Self::Center,
+            "right" => Self::Right,
+            _ => Self::Left,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Block {
     pub id: u64,
@@ -119,6 +145,7 @@ pub struct Block {
     pub marks: Vec<MarkRange>,
     pub raw: Option<Value>,
     pub table: Option<TableData>,
+    pub align: TextAlign,
 }
 
 impl Block {
@@ -130,6 +157,7 @@ impl Block {
             marks: Vec::new(),
             raw: None,
             table: None,
+            align: TextAlign::Left,
         }
     }
 
@@ -288,6 +316,12 @@ fn assign_ids(blocks: &mut [Block]) {
 
 fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
     let node_type = node.get("type").and_then(Value::as_str).unwrap_or_default();
+    let align = node
+        .get("attrs")
+        .and_then(|attrs| attrs.get("textAlign"))
+        .and_then(Value::as_str)
+        .map(TextAlign::from_str)
+        .unwrap_or_default();
     match node_type {
         "paragraph" | "heading" => {
             let (text, marks) = collect_inline(node);
@@ -310,6 +344,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks,
                 raw: None,
                 table: None,
+                align,
             });
         }
         "bulletList" | "orderedList" => {
@@ -344,6 +379,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks: Vec::new(),
                 raw: None,
                 table: None,
+                align,
             });
         }
         "pageBreak" => {
@@ -354,6 +390,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks: Vec::new(),
                 raw: Some(node.clone()),
                 table: None,
+                align,
             });
         }
         "image" => {
@@ -364,6 +401,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks: Vec::new(),
                 raw: Some(node.clone()),
                 table: None,
+                align,
             });
         }
         "table" => {
@@ -374,6 +412,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks: Vec::new(),
                 raw: Some(node.clone()),
                 table: Some(parse_table(node)),
+                align,
             });
         }
         "horizontalRule" => {
@@ -384,6 +423,7 @@ fn parse_block(node: &Value, forced: Option<BlockKind>, out: &mut Vec<Block>) {
                 marks: Vec::new(),
                 raw: Some(node.clone()),
                 table: None,
+                align,
             });
         }
         _ => {
@@ -588,7 +628,11 @@ fn block_to_json(block: &Block) -> Option<Value> {
         BlockKind::Heading(level) => {
             let mut node = paragraph_node(block, None).unwrap_or_else(|| json!({ "type": "paragraph" }));
             node["type"] = json!("heading");
-            node["attrs"] = json!({ "level": level.clamp(1, 4) });
+            let mut attrs = json!({ "level": level.clamp(1, 4) });
+            if block.align != TextAlign::Left {
+                attrs["textAlign"] = json!(block.align.as_str());
+            }
+            node["attrs"] = attrs;
             Some(node)
         }
         BlockKind::Quote => {
@@ -606,11 +650,15 @@ fn block_to_json(block: &Block) -> Option<Value> {
 
 fn paragraph_node(block: &Block, _label: Option<&str>) -> Option<Value> {
     let content = inline_json(&block.text, &block.marks);
-    if content.is_empty() {
-        Some(json!({ "type": "paragraph" }))
+    let mut node = if content.is_empty() {
+        json!({ "type": "paragraph" })
     } else {
-        Some(json!({ "type": "paragraph", "content": content }))
+        json!({ "type": "paragraph", "content": content })
+    };
+    if block.align != TextAlign::Left {
+        node["attrs"] = json!({ "textAlign": block.align.as_str() });
     }
+    Some(node)
 }
 
 fn inline_json(text: &str, ranges: &[MarkRange]) -> Vec<Value> {

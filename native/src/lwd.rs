@@ -208,6 +208,7 @@ mod tests {
                     vec![TableCell { text: "轻文".into() }, TableCell { text: "1".into() }],
                 ],
             }),
+            align: crate::model::TextAlign::Left,
         });
         let table_path = folder.join("表格.lwd");
         save_lwd(&table_path, &table_document, "表格", &created).unwrap();

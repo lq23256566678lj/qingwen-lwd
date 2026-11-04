@@ -69,8 +69,8 @@ jobs:
             <key>CFBundleName</key><string>Qingwen LWD Native</string>
             <key>CFBundleDisplayName</key><string>轻文 LWD Native</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>0.9.5</string>
-            <key>CFBundleVersion</key><string>0.9.5</string>
+            <key>CFBundleShortVersionString</key><string>0.9.6</string>
+            <key>CFBundleVersion</key><string>0.9.6</string>
             <key>LSMinimumSystemVersion</key><string>10.15</string>
             <key>NSHighResolutionCapable</key><true/>
             <key>CFBundleDocumentTypes</key>
@@ -110,7 +110,7 @@ jobs:
           EOF
           cat > "$PKG/DEBIAN/control" <<'EOF'
           Package: qingwen-native
-          Version: 0.9.5
+          Version: 0.9.6
           Section: editors
           Priority: optional
           Architecture: amd64
@@ -118,7 +118,7 @@ jobs:
           Description: Qingwen LWD Native
            Pure Rust egui editor for .lwd documents.
           EOF
-          dpkg-deb --build "$PKG" dist-native/qingwen-native_0.9.5_amd64.deb
+          dpkg-deb --build "$PKG" dist-native/qingwen-native_0.9.6_amd64.deb
 
       - name: Upload native packages
         uses: actions/upload-artifact@v4

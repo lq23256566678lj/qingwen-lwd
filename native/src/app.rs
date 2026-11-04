@@ -21,7 +21,7 @@ use crate::pdf;
 use crate::webdav;
 use crate::model::{
     adjust_marks_after_edit, apply_marks, byte_index, Block, BlockKind, Document, Marks, PageLayout,
-    TableCell, TableData,
+    TableCell, TableData, TextAlign,
 };
 
 const PAGE_WIDTH: f32 = 700.0;
@@ -811,6 +811,7 @@ impl NativeApp {
             marks: Vec::new(),
             raw: Some(raw),
             table: None,
+            align: TextAlign::Left,
         };
         let new_id = self.new_block_id();
         let focus = self.focus_block;
@@ -1089,6 +1090,7 @@ impl NativeApp {
             marks: Vec::new(),
             raw: None,
             table: Some(table),
+            align: TextAlign::Left,
         };
         let new_id = self.new_block_id();
         let focus = self.focus_block;
@@ -1475,6 +1477,17 @@ impl NativeApp {
                             }
                         }
                     });
+                    ribbon_group(ui, "对齐", |ui| {
+                        for (label, align) in [
+                            ("左", TextAlign::Left),
+                            ("中", TextAlign::Center),
+                            ("右", TextAlign::Right),
+                        ] {
+                            if ui.button(label).clicked() {
+                                self.set_alignment(align);
+                            }
+                        }
+                    });
                     ribbon_group(ui, "编辑", |ui| {
                         if ui.button("查找").clicked() {
                             self.find_open = true;
@@ -1636,6 +1649,23 @@ impl NativeApp {
         }
     }
 
+    fn set_alignment(&mut self, align: TextAlign) {
+        let Some(focus) = self.focus_block else {
+            self.status = "请先点击一个段落".to_string();
+            return;
+        };
+        let Some(tab) = self.active_tab_mut() else {
+            return;
+        };
+        let Some(block) = tab.document.blocks.iter_mut().find(|block| block.id == focus) else {
+            return;
+        };
+        if block.kind.is_editable() {
+            block.align = align;
+            tab.dirty = true;
+        }
+    }
+
     fn insert_page_break(&mut self) {
         let id = self.new_block_id();
         let focus = self.focus_block;
@@ -1660,6 +1690,7 @@ impl NativeApp {
                 marks: Vec::new(),
                 raw: Some(serde_json::json!({ "type": "pageBreak" })),
                 table: None,
+                align: TextAlign::Left,
             },
         );
         tab.dirty = true;
