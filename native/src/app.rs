@@ -1974,9 +1974,18 @@ impl NativeApp {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.vertical_centered(|ui| {
-                        let width = (PAGE_WIDTH * self.zoom)
+                        let landscape = self
+                            .active_tab()
+                            .map(|tab| tab.document.layout.landscape)
+                            .unwrap_or(false);
+                        let base_width = if landscape {
+                            PAGE_WIDTH * 297.0 / 210.0
+                        } else {
+                            PAGE_WIDTH
+                        };
+                        let width = (base_width * self.zoom)
                             .min((ui.available_width() - 32.0).max(420.0));
-                        let scale = width / 21.0;
+                        let scale = width / if landscape { 29.7 } else { 21.0 };
                         self.editor_pages(ui, width, scale);
                     });
                 });
@@ -2099,7 +2108,11 @@ impl NativeApp {
         let top = (layout.margins.top * scale).min(width * 0.4);
         let bottom = (layout.margins.bottom * scale).min(width * 0.4);
         let content_width = (width - left - right).max(120.0);
-        let page_height = (width * 297.0 / 210.0).max(900.0);
+        let page_height = if layout.landscape {
+            (width * 210.0 / 297.0).max(620.0)
+        } else {
+            (width * 297.0 / 210.0).max(900.0)
+        };
         let usable_height = (page_height - top - bottom - 18.0).max(120.0);
         self.split_long_blocks(active, ui, &layout, content_width, usable_height);
         let Some(tab) = self.tabs.get(active) else {
@@ -2107,7 +2120,14 @@ impl NativeApp {
         };
         let show_ruler = self.show_ruler;
         if show_ruler {
-            draw_ruler(ui, width, left, right, scale);
+            draw_ruler(
+                ui,
+                width,
+                left,
+                right,
+                scale,
+                if layout.landscape { 29 } else { 21 },
+            );
             ui.add_space(4.0);
         }
 
@@ -2156,7 +2176,8 @@ impl NativeApp {
                 }
                 continue;
             }
-            let height = estimate_block_height(ui, block, &layout, content_width, &textures);
+            let height = estimate_block_height(ui, block, &layout, content_width, &textures)
+                + layout.paragraph_spacing * scale;
             if !current.is_empty() && used + height > usable_height {
                 pages.push(std::mem::take(&mut current));
                 used = 0.0;
@@ -2271,6 +2292,9 @@ impl NativeApp {
                                 }
                                 if result.scroll_rect.is_some() {
                                     scroll_rect = result.scroll_rect;
+                                }
+                                if !block.chunked {
+                                    ui.add_space(layout.paragraph_spacing * scale);
                                 }
                             }
                         });
@@ -2506,6 +2530,11 @@ impl NativeApp {
                     )
                     .changed();
                 changed |= ui.checkbox(&mut layout.page_border, "页面边框").changed();
+                changed |= ui.checkbox(&mut layout.landscape, "横向纸张").changed();
+                ui.label("段后间距（cm）");
+                changed |= ui
+                    .add(egui::Slider::new(&mut layout.paragraph_spacing, 0.0..=2.0))
+                    .changed();
                 if changed {
                     tab.document.layout = layout.clone().normalized();
                     tab.dirty = true;
@@ -3188,7 +3217,14 @@ fn draw_vertical_ruler(ui: &mut Ui, page_height: f32, top: f32, bottom: f32, sca
     }
 }
 
-fn draw_ruler(ui: &mut Ui, page_width: f32, left: f32, right: f32, scale: f32) {
+fn draw_ruler(
+    ui: &mut Ui,
+    page_width: f32,
+    left: f32,
+    right: f32,
+    scale: f32,
+    max_cm: usize,
+) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(page_width, 18.0), egui::Sense::hover());
     let painter = ui.painter();
     painter.rect_filled(rect, 3.0, Color32::from_rgb(246, 248, 252));
@@ -3214,7 +3250,7 @@ fn draw_ruler(ui: &mut Ui, page_width: f32, left: f32, right: f32, scale: f32) {
         0.0,
         Color32::from_rgb(232, 237, 247),
     );
-    for cm in 0..=21 {
+    for cm in 0..=max_cm {
         let x = rect.left() + cm as f32 * scale;
         let major = cm % 5 == 0;
         painter.line_segment(

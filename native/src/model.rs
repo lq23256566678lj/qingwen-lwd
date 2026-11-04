@@ -251,6 +251,10 @@ pub struct PageLayout {
     pub page_border: bool,
     #[serde(default)]
     pub watermark: String,
+    #[serde(default)]
+    pub landscape: bool,
+    #[serde(default)]
+    pub paragraph_spacing: f32,
 }
 
 impl Default for PageLayout {
@@ -266,6 +270,8 @@ impl Default for PageLayout {
             different_first_page: false,
             page_border: false,
             watermark: String::new(),
+            landscape: false,
+            paragraph_spacing: 0.0,
         }
     }
 }

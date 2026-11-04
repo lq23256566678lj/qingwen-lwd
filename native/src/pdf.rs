@@ -22,8 +22,13 @@ pub fn export_pdf(
     let right = layout.margins.right * 10.0;
     let top = layout.margins.top * 10.0;
     let bottom = layout.margins.bottom * 10.0;
-    let content_width = (A4_WIDTH_MM - left - right).max(40.0);
-    let usable_height = (A4_HEIGHT_MM - top - bottom).max(40.0);
+    let (page_width, page_height) = if layout.landscape {
+        (A4_HEIGHT_MM, A4_WIDTH_MM)
+    } else {
+        (A4_WIDTH_MM, A4_HEIGHT_MM)
+    };
+    let content_width = (page_width - left - right).max(40.0);
+    let usable_height = (page_height - top - bottom).max(40.0);
 
     let mut pages: Vec<Vec<(String, f32)>> = Vec::new();
     let mut current: Vec<(String, f32)> = Vec::new();
@@ -51,7 +56,8 @@ pub fn export_pdf(
             current.push((line, font_size));
             y -= line_height;
         }
-        let gap = (layout.font_size * MM_PER_POINT * 0.45).max(1.0);
+        let gap = (layout.font_size * MM_PER_POINT * 0.45).max(1.0)
+            + layout.paragraph_spacing * 10.0;
         if y < gap {
             pages.push(std::mem::take(&mut current));
             y = usable_height;
@@ -65,7 +71,7 @@ pub fn export_pdf(
     pages.push(current);
 
     let (doc, first_page, first_layer) =
-        PdfDocument::new(title, Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Text");
+        PdfDocument::new(title, Mm(page_width), Mm(page_height), "Text");
     let font = doc
         .add_external_font(File::open(&font_path).map_err(|error| {
             format!("无法打开 PDF 字体 {}：{error}", font_path.display())
@@ -76,7 +82,7 @@ pub fn export_pdf(
         let (page, layer) = if page_index == 0 {
             (first_page, first_layer)
         } else {
-            doc.add_page(Mm(A4_WIDTH_MM), Mm(A4_HEIGHT_MM), "Text")
+            doc.add_page(Mm(page_width), Mm(page_height), "Text")
         };
         let layer = doc.get_page(page).get_layer(layer);
         if !layout.header_text.is_empty() && !(layout.different_first_page && page_index == 0) {
@@ -88,7 +94,7 @@ pub fn export_pdf(
                     .as_str(),
                 9.0,
                 Mm(left),
-                Mm(A4_HEIGHT_MM - (top * 0.45).max(4.0)),
+                Mm(page_height - (top * 0.45).max(4.0)),
                 &font,
             );
         }
@@ -109,11 +115,11 @@ pub fn export_pdf(
         layer.use_text(
             page_label.as_str(),
             9.0,
-            Mm(A4_WIDTH_MM - right - 32.0),
+            Mm(page_width - right - 32.0),
             Mm((bottom * 0.45).max(4.0)),
             &font,
         );
-        let mut y = A4_HEIGHT_MM - top;
+        let mut y = page_height - top;
         for (line, font_size) in lines {
             let line_height = (*font_size * 1.55 * MM_PER_POINT).max(2.4);
             y -= line_height;
