@@ -1,0 +1,55 @@
+{
+  "format": "lwd",
+  "version": 1,
+  "app": "qingwen-native",
+  "createdAt": "2026-11-04T00:00:00.000Z",
+  "updatedAt": "2026-11-04T00:00:00.000Z",
+  "meta": {
+    "title": "图片测试",
+    "wordCount": 8,
+    "characterCount": 10,
+    "layout": {
+      "lineHeight": 1.85,
+      "margins": {
+        "top": 2.5,
+        "right": 2.5,
+        "bottom": 2.5,
+        "left": 2.5
+      },
+      "firstLineIndent": 0,
+      "fontFamily": "",
+      "fontSize": 16
+    }
+  },
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "图片渲染测试："
+          }
+        ]
+      },
+      {
+        "type": "image",
+        "attrs": {
+          "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAADwCAIAAABXFyDtAAAH6UlEQVR4nO3df6zVdR3H8e89fO9Vyj/9r80scYCKJnM1iBq/xnC4UiGUYZZRQCgGRQtRAroDNkzQ25WExhKjaBl3rD9M29ocYWEqrCTNSbo5trYgFyG/7uXe0+Cue+l2uwdneV43H4/dP+Bw+X4/O7t77r3P+e5zGw69VS0AyFOp9wIA6J9AA4QSaIBQAg0QSqABQgk0QCiBBghVegoaIJMJGiCUQAOEEmiAUGVhExogkgkaIJRAA4QSaIBQnoMGCGWCBggl0AChBBoglEADhBJogFACDRBKoAFClVVncQBEMkEDhBJogFACDRBKoAFCCTRAKIEGCCXQAKGcBw0QygQNEEqgAUIJNECosnAWB0AkEzRAKIEGCCXQAKHq9hz09d88XKc7A7xtP//WxcW7zgQNEEqgAUIJNECosnivbu4AhH9UZoIGCCXQAKEEGiBUWQ04iyNhDQBpmTJBA4QSaIBQAg0QSqABQgk0QCiBBggl0ACh6nYe9LkS1gCQlikTNEAogQYIJdAAocqIDeCENQAMwFkcAPSwxQEQSqABQnkOGqA2z0ED0MsWB0AogQYIJdAAoQQaIJRAA4QSaIBQZTXgHIyENQCkZcoEDRBKoAFCCTRAKIEGCCXQAKEEGiCUQAOEch40QG3Ogwagly0OgFACDRCqrM/OSh8JawAYgLM4AOhhiwMglEADhPIcNEBtnoMGoJctDoBQAg0QSqABQgk0QCiBBggl0AChymrAORgJawBIy5QJGiCUQAOEEmiAUAINEEqgAUIJNEAogQYI5TxogNqcBw1AL1scAKEEGiBUWZ+dlT4S1gAwAGdxANDDFgdAKIEGCFWpnt1aefe/zlWvNfiq+Q6MmzRz/t3Le/46cersfr/t0W1t1aL40+tv/HTnk2/rXf1PF/TlHagG/BjUPVMmaAbS1NjY2dm5d9/+gd+mx7btKIriwx+6ZPqNU72h8N8i0NQwd86szVt+fO4rr73+xtwF98y6/Svbf/Kzoig2b9l+/MTJhV9dWRTFpKmzi6K47Y7Fhw79tSiK9o6OGbMWHDlydEXzhrsWrZh3171/ePnVfu8yaers5rWtN98yv23nUyuaN9w0c373xfvc6803/7Zk6Zq5dy5b2fzglBtuL4ri6NG3al4cBimBpobrRo8qiuKFvS/2vPJ42xML5n12U+vqbT/a2V3w9w298DvrzwS628TxY3c989zZ/7V/zMdGtz7y2Mzp01ofXLVq+aK16zb2e5f29o6bPz1lY0vzuvWbZs644bstzd0X73OvlocfnTxx3OaH10wYP+bE8ZNnXtm4tebFYZAq670ABoG5c27dtGX7prOlLopi4Zc/94tf7t796+ePHTvR7/dPmjB2/UNbpt84dfczz02Z/In7Vj5w8OCfu//pxMlTXV1dlUrfyaCh0jByxLBKpdJYliOHD6tUGk6ePPXv93ph3/5lS+8simLc2OsqQ85cZM+z+2peHAYpgaa20ddeValUnv/nEH3P8vsnjB8zc8a0HTuf7Pf7P3jJB478/eixY8dfefW1JYu/1NnZ+dADK5qaGru6qr978aV+A9pYlt2vNzU1VioNPa/3uVfH6dPdr3d1Vatnf4vn+VwcBik/zZyXuXNu3bxle/efX37lwOSJH28/1d7R0dH9Sle12tX1Lx96f3LcR7f+sO2KkZc3NDRcPWrk07v2FEXxm2f3bv3BmY8Tz1+fe1191Yhdv/ptURRP79rTHeh3cnEIZ4LmvFx7zZWNZdl+tpIzbrr+i/OXXj7s0osuen97R0dTY+NHrrliydLV69fd1/P9kyaMnf35RRtbmouiWHz3F9au29i286khQyrLvnFmg+L89bnXooV3rFrd8njbE6OuHD506IXv8OIQruHAX+pzEMb01Yd7/rzj3ovrsgYGneY1LbNu+dSwyy596Y8HWlq//0jr6nqviP9n0+udKRM0g8lnpk/79obvXXBBU8fp01//2rx6Lwf+twSawWTE8MtMzbx3+JAQIJRAA4QSaIBQAg0QSqABQpUJvw4wYQ0AaZkyQQOEEmiAUAINEKqM2ABOWANAWKZM0AChBBoglEADhPIcNEBtnoMGoJctDoBQAg0QSqABQgk0QCiBBggl0AChymrAORgJawBIy5QJGiCUQAOEEmiAUAINEEqgAUIJNEAogQYI5TxogNqcBw1AL1scAKEEGiBUWZ+dlT4S1gAwAGdxANDDFgdAKIEGCOU5aIDaPAcNQC9bHAChBBoglEADhBJogFACDRBKoAFCldWAczAS1gCQlikTNEAogQYIJdAAoQQaIJRAA4QSaIBQAg0QynnQALU5DxqAXrY4AEIJNECosj47K30krAFgAM7iAKCHLQ6AUAINEMpz0AC1eQ4agF62OABCCTRAKIEGCCXQAKEEGiCUQAOEKqsB52AkrAEgLVMmaIBQAg0QSqABQgk0QKiyCHDb/YfrvQSAOCZogFACDRAq4jxogHDVety04fcHJRogkS0OgFACDRCqrM/OCgC1mKABQgk0QCiBBgjlOWiAUCZogFACDRBKoAFCCTRAKIEGCCXQAKEEGiBUWXUWB0AkEzRAKIEGCCXQAKEEGiCUQAOEEmiAUAINEMp50AChTNAAoQQaIJRAA4QqC2dxAEQyQQOEEmiAUAINEMpz0AChTNAAoQQaIJRAA4QSaIBQAg0QSqABQgk0QJHpH9inwgk+fIrJAAAAAElFTkSuQmCC",
+          "alt": "native-image",
+          "title": "native-image"
+        }
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "图片下方的段落。"
+          }
+        ]
+      }
+    ]
+  }
+}
